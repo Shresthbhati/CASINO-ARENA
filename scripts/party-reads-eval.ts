@@ -40,7 +40,8 @@ function botNetBB(seed: number, readHumans: boolean): number {
       if (!table.humanToAct()) break;
       const style = HUMANS[table.view().turnSeat] as Style;
       const legal = table.legalActions();
-      table.act(legal.includes('CHECK') ? 'CHECK' : style === 'caller' ? 'CALL' : table.callAmount() <= 20 ? 'CALL' : 'FOLD', 0);
+      // Capped so no single hand can bust a 1M stack: an uncapped station calls all-ins and one bust swamps every other number.
+      table.act(legal.includes('CHECK') ? 'CHECK' : table.callAmount() <= (style === 'caller' ? 30 * BB : BB) ? 'CALL' : 'FOLD', 0);
     }
     played += 1;
   }
