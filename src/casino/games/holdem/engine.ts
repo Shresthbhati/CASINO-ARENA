@@ -45,6 +45,7 @@ import type { RandomProvider } from '@/arena/core/rng';
 import { cardLabel, newShoe, type Card52 } from '@/casino/cards';
 import { buildPot, awardPot, type PotParticipant, type PotResult, type PotDiagnosticSink } from './pots';
 import { evaluateBest } from './evaluator';
+import { evaluateOmaha } from '@/casino/games/omaha/evaluator';
 import { observe, RELIABLE_OBSERVATIONS, type OpponentView, type PokerObservation, type PokerPlayerRead } from './observation';
 import { OpponentModel, type LearnerConfig, type LearnEvent, type ObservedDecision, type OpponentEstimate, type OpponentSnapshot } from './opponent-model';
 import { decide, explain, type PolicyContext, type PokerDecision } from './policy';
@@ -85,6 +86,9 @@ export interface BankrollPort {
   debit(amount: number): boolean;
 }
 
+export type PokerGameVariant = 'HOLDEM' | 'OMAHA';
+export type BettingLimit = 'NO_LIMIT' | 'POT_LIMIT';
+
 /** Everything the engine needs to build a table. */
 export interface HoldemConfig {
   readonly seats: readonly SeatConfig[];
@@ -121,6 +125,10 @@ export interface HoldemConfig {
    * Evaluation passes `LEGACY_LEARNER` to keep the pre-recency learner as the control.
    */
   readonly learner?: LearnerConfig;
+  /** Game variant: defaults to 'HOLDEM'. In 'OMAHA', 4 hole cards are dealt and evaluated with exactly 2 hole + 3 board. */
+  readonly variant?: PokerGameVariant;
+  /** Betting limit: defaults to 'NO_LIMIT'. In 'POT_LIMIT', max raise is capped by pot size. */
+  readonly bettingLimit?: BettingLimit;
 }
 
 /**
@@ -407,6 +415,18 @@ export class HoldemTable {
     this.resetStacks();
   }
 
+  private isOmaha(): boolean {
+    return this.config.variant === 'OMAHA';
+  }
+
+  private isPotLimit(): boolean {
+    return this.config.bettingLimit === 'POT_LIMIT';
+  }
+
+  private expectedHoleCards(): number {
+    return this.isOmaha() ? 4 : 2;
+  }
+
   private resetStacks(): void {
     this.seats = this.config.seats.map((cfg) => ({
       seatId: cfg.seatId,
@@ -617,9 +637,10 @@ export class HoldemTable {
     this.phase = priorPhase;
   }
 
-  /** Deal two cards each to the funded seats, one at a time, as at a real table. */
+  /** Deal hole cards to the funded seats, one at a time, as at a real table (2 for Hold'em, 4 for Omaha). */
   private dealHoleCards(): void {
-    for (let round = 0; round < 2; round += 1) {
+    const rounds = this.expectedHoleCards();
+    for (let round = 0; round < rounds; round += 1) {
       for (let i = 0; i < this.seats.length; i += 1) {
         const seat = this.seats[(this.buttonSeat + i) % this.seats.length] as Seat;
         if (seat.sittingOut) continue;
@@ -783,7 +804,9 @@ export class HoldemTable {
       // read; fixing it in React would leave the bots reasoning from a list the
       // player cannot see.
       out.push(this.currentBet === 0 ? 'BET' : 'RAISE');
-      out.push('ALL_IN');
+      if (!this.isPotLimit() || seat.committedThisStreet + seat.stack <= this.maxRaiseTo()) {
+        out.push('ALL_IN');
+      }
     }
     return out;
   }
@@ -807,10 +830,20 @@ export class HoldemTable {
     return base + this.lastRaiseSize;
   }
 
-  /** The largest bet the seat to act could make with its stack. */
+  /**
+   * The largest bet the seat to act could make with its stack.
+   *
+   * In No-Limit: all-in (stack plus commitment this street).
+   * In Pot-Limit: the current bet + total pot + amount to call, capped by the seat's stack.
+   */
   maxRaiseTo(): number {
     const seat = this.turnSeat();
-    return seat ? seat.committedThisStreet + seat.stack : 0;
+    if (!seat) return 0;
+    const allIn = seat.committedThisStreet + seat.stack;
+    if (!this.isPotLimit()) return allIn;
+    const toCall = this.callAmount();
+    const potRaiseTo = this.currentBet + this.pot() + toCall;
+    return Math.min(potRaiseTo, allIn);
   }
 
   /**
@@ -883,7 +916,7 @@ export class HoldemTable {
    */
   holeCardsFor(seatIndex: number): readonly CardLikeView[] {
     const seat = this.seats[seatIndex];
-    if (!seat || seat.holeCards.length !== 2) return [];
+    if (!seat || seat.holeCards.length !== this.expectedHoleCards()) return [];
     return seat.holeCards.map((c) => toView(c));
   }
 
@@ -935,6 +968,9 @@ export class HoldemTable {
       }
 
       case 'ALL_IN': {
+        if (this.isPotLimit() && seat.committedThisStreet + seat.stack > this.maxRaiseTo()) {
+          return false;
+        }
         added = seat.stack;
         raiseTo = seat.committedThisStreet + added;
         full = raiseTo >= this.minRaiseTo();
@@ -944,8 +980,9 @@ export class HoldemTable {
 
       case 'BET':
       case 'RAISE': {
+        if (this.isPotLimit() && amount > this.maxRaiseTo()) return false;
         const target = Math.max(amount, this.minRaiseTo());
-        raiseTo = Math.min(target, seat.committedThisStreet + seat.stack);
+        raiseTo = Math.min(target, this.maxRaiseTo());
         added = raiseTo - seat.committedThisStreet;
         // A raise capped by the stack below the minimum is a short all-in: it
         // moves the bet but does not reopen the betting.
@@ -1223,14 +1260,14 @@ export class HoldemTable {
     const seat = this.seats[index] as Seat;
     return observe({
       observerSeatIndex: index,
-      ownCards: [seat.holeCards[0] as Card52, seat.holeCards[1] as Card52],
+      ownCards: seat.holeCards,
       board: this.board,
       street: this.street,
       pot: this.pot(),
       currentBet: this.currentBet,
       callAmount: this.callAmount(),
       minRaiseTo: this.minRaiseTo(),
-      maxRaiseTo: seat.committedThisStreet + seat.stack,
+      maxRaiseTo: this.maxRaiseTo(),
       turnSeatIndex: this.turn,
       playersToAct: Math.max(0, this.actors().length - 1),
       legalActions: this.legalActions(),
@@ -1338,7 +1375,7 @@ export class HoldemTable {
     const human = this.config.humanSeatIndex;
 
     const participants: PotParticipant[] = this.seats.map((seat, index) =>
-      seat.holeCards.length === 2
+      seat.holeCards.length === this.expectedHoleCards()
         ? {
             seatIndex: index,
             committed: seat.committed,
@@ -1357,7 +1394,15 @@ export class HoldemTable {
     // scoring a hand - so a fold-out still never depends on the cards dealt, and
     // it is now checked by the same eligibility rules as a showdown instead of
     // by an unchecked "last seat takes everything".
-    const result = awardPot(buildPot(participants, this.config.onPotDiagnostic), participants);
+    const scorer = this.isOmaha()
+      ? (holding: readonly Card52[]) => {
+          if (holding.length !== 9) return [];
+          const hole = holding.slice(0, 4);
+          const board = holding.slice(4);
+          return evaluateOmaha(hole, board).score;
+        }
+      : undefined;
+    const result = awardPot(buildPot(participants, this.config.onPotDiagnostic), participants, scorer);
     this.assertPotIntegrity(result, participants);
     this.phase = 'SETTLEMENT';
     if (contenders.length > 1) this.potResult = result;
@@ -1464,11 +1509,19 @@ export class HoldemTable {
 /** Build the public result for the felt and the announcement. */
   private summarise(awarded: Map<number, number>, humanNet: number): ShowdownSummary {
     const lines: ShowdownLine[] = this.seats.map((seat, index) => {
-      const holding = seat.holeCards.length === 2 ? [...seat.holeCards, ...this.board] : [];
+      const holding = seat.holeCards.length === this.expectedHoleCards() ? [...seat.holeCards, ...this.board] : [];
       // A folded seat's cards stay hidden even after the hand: only the hands
       // that reached the showdown are revealed, as at a real table.
       const shown = seat.folded ? [] : holding;
-      const evaluated = shown.length >= 5 ? evaluateBest(shown) : null;
+      let evaluated: { label: string; categoryRank: number } | null = null;
+      if (shown.length >= 5) {
+        if (this.isOmaha() && seat.holeCards.length === 4 && this.board.length === 5) {
+          const omahaEval = evaluateOmaha(seat.holeCards, this.board);
+          evaluated = { label: omahaEval.label, categoryRank: omahaEval.categoryRank };
+        } else if (!this.isOmaha()) {
+          evaluated = evaluateBest(shown);
+        }
+      }
       return {
         seatIndex: index,
         seatName: seat.name,
@@ -1637,7 +1690,7 @@ export class HoldemTable {
       for (const k of ['handsWon', 'betSeen', 'lastActionAmount']) if (!isNat(rawSeat[k])) bad(`seat ${i} has an impossible ${k}`);
       for (const k of ['folded', 'allIn', 'sittingOut', 'away', 'acted', 'isButton', 'isSmallBlind', 'isBigBlind']) if (typeof rawSeat[k] !== 'boolean') bad(`seat ${i} has an impossible ${k}`);
       if (rawSeat.lastAction !== null && typeof rawSeat.lastAction !== 'string') bad(`seat ${i} has an impossible last action`);
-      if (!Array.isArray(rawSeat.holeCards) || rawSeat.holeCards.length > 2) bad(`seat ${i} has impossible hole cards`);
+      if (!Array.isArray(rawSeat.holeCards) || rawSeat.holeCards.length > (this.isOmaha() ? 4 : 2)) bad(`seat ${i} has impossible hole cards`);
       (rawSeat.holeCards as unknown[]).forEach((c) => note(c, `seat ${i}`));
       chips += rawSeat.stack as number;
     });
@@ -1699,7 +1752,7 @@ export class HoldemTable {
         folded: seat.folded,
         allIn: seat.allIn,
         sittingOut: seat.sittingOut,
-        holeCards: (index === human || complete) && seat.holeCards.length === 2
+        holeCards: (index === human || complete) && seat.holeCards.length === this.expectedHoleCards()
           ? seat.holeCards.map((c) => toView(c))
           : [],
         isButton: seat.isButton,

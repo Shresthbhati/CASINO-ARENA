@@ -55,7 +55,7 @@ export const TableHost: React.FC = () => {
   const zones = session.zones();
   const isBlackjack = session.gameId === 'blackjack';
   const bjView = isBlackjack ? (session.view() as BlackjackAdapterView) : null;
-  const isHoldem = session.gameId === 'texas-holdem';
+  const isHoldem = session.gameId === 'texas-holdem' || session.gameId === 'omaha';
   const holdemView = isHoldem ? (session.view() as HoldemAdapterView) : null;
   const legal = session.legalActions();
   const midHand = !session.canEnd();
@@ -172,6 +172,7 @@ export const TableHost: React.FC = () => {
             break;
 
           case 'texas-holdem':
+          case 'omaha':
             if (holdemView) {
               return (
                 <HoldemFelt

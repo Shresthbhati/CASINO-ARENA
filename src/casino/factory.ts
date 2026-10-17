@@ -20,6 +20,7 @@ import { HighCardGame, WarGame } from './games/war';
 import { WheelGame } from './games/wheel';
 import { blackjackGame } from './games/blackjack-adapter';
 import { HoldemAdapter } from './games/holdem/adapter';
+import { OmahaAdapter } from './games/omaha/adapter';
 import type { ProfileRepository } from './games/holdem/opponent-model';
 import type { CasinoWallet } from './wallet';
 
@@ -103,7 +104,7 @@ export function createEngine(id: GameId, options: EngineOptions): CasinoGame<unk
     case 'texas-holdem':
       return holdem(options);
     case 'omaha':
-      return null;
+      return omaha(options);
     default:
       return null;
   }
@@ -142,6 +143,34 @@ function holdem(options: EngineOptions): CasinoGame<never> | null {
     rng: seedSource,
     // Derived from the deal stream's identity, never from its position, so each
     // seat is independent of how many seats exist.
+    seatStreams: Array.from(
+      { length: botCount + 1 },
+      (_, i) => createRandomProvider('simulation', streamSeed(seedSource, i)),
+    ),
+    wallet: options.wallet,
+    sessionId: options.sessionId,
+    botCount,
+    difficulty: options.difficulty ?? 70,
+    blinds: options.blinds ?? { smallBlind: 10, bigBlind: 20 },
+    humanStack,
+    botStack,
+    ...(options.profileRepository ? { profileRepository: options.profileRepository } : {}),
+  }) as unknown as CasinoGame<never>;
+}
+
+/** Build the Pot-Limit Omaha table. */
+function omaha(options: EngineOptions): CasinoGame<never> | null {
+  if (!options.wallet || !options.sessionId) {
+    throw new Error('Omaha requires a wallet and a sessionId');
+  }
+  const botCount = Math.max(1, Math.min(5, options.botSeats ?? 3));
+  const humanStack = options.humanStack ?? 5_000;
+  const botStack = options.botStack ?? 10_000;
+  const seedSource = options.rng;
+
+  return new OmahaAdapter({
+    bankroll: options.bankroll,
+    rng: seedSource,
     seatStreams: Array.from(
       { length: botCount + 1 },
       (_, i) => createRandomProvider('simulation', streamSeed(seedSource, i)),

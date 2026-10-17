@@ -36,7 +36,7 @@ and the latest test run._
 | **High Card Duel** | `PLAYABLE` | ✅ Full engine | ✅ `WarTable` (shared) | ✅ Present | Single-card variant |
 | **Three Card Poker** | `PLAYABLE` | ✅ Full engine | ✅ `ThreeCardPokerTable` | ✅ Present | Ante+Play+PairPlus, TCP settlement V2 |
 | **Teen Patti** | `BETA` | ✅ Engine (shallow) | ✅ `TeenPattiTable` | Minimal | Blind/Seen, house hand only. **No multi-table, no Chaal** |
-| **Pot-Limit Omaha** | `COMING_SOON` | ❌ No engine | ❌ N/A | N/A | Factory returns `null`. Requires exact-two hole cards evaluator |
+| **Pot-Limit Omaha** | `PLAYABLE` | ✅ Full engine + adapter | ✅ `HoldemFelt` (4-card support) | ✅ 18 tests (3 suites) | Pot-limit raise bounds, 4 hole cards, exact 2+3 evaluation |
 
 ### 1.3 Analytics, achievements, bot inspector
 
@@ -118,20 +118,19 @@ surface-level arithmetic over existing data.
 
 ---
 
-### P3 — Omaha engine (Pot-Limit Omaha)
+### P3 — Omaha engine (Pot-Limit Omaha) — ✅ COMPLETED
 
-**Current gap:** Factory returns `null`, registry says `COMING_SOON`. A hold'em
-evaluator is not reusable because Omaha requires exactly two hole cards from four.
+**Status:** Fully implemented and verified. Engine supports Omaha 4-hole-card rules, pot-limit betting calculations, exact 2-hole + 3-board showdown evaluation, single-credit settlement, and UI rendering in `HoldemFelt`.
 
 **Acceptance criteria:**
-- [ ] Implement a standalone Omaha hand evaluator that tries all C(4,2)×C(5,3)
-  combinations and returns the best five-card hand using exactly 2 of 4 hole cards
-- [ ] Port Hold'em's betting structure to Omaha's pot-limit constraint
-  (raise cannot exceed current pot; verify with pot-calculation tests)
-- [ ] Implement Omaha game engine extending/adapting `HoldemAdapter`
-- [ ] Connect factory, update registry to `PLAYABLE`, add UI component
-- [ ] Test: evaluator selects the correct best hand from all combinations;
-  pot-limit constraint refuses over-size raise; split-pot resolution
+- [x] Implement a standalone Omaha hand evaluator that tries all C(4,2)×C(5,3)
+  combinations and returns the best five-card hand using exactly 2 of 4 hole cards (`src/casino/games/omaha/evaluator.ts`)
+- [x] Port Hold'em's betting structure to Omaha's pot-limit constraint
+  (raise cannot exceed current pot; verified with pot-calculation tests in `engine.ts` and `omaha/__tests__/engine.test.ts`)
+- [x] Implement Omaha game engine extending/adapting `HoldemAdapter` (`src/casino/games/omaha/adapter.ts`)
+- [x] Connect factory, update registry to `PLAYABLE`, add UI component integration (`src/casino/factory.ts`, `src/casino/registry.ts`, `HoldemFelt.tsx`, `TableHost.tsx`)
+- [x] Test: evaluator selects the correct best hand from all combinations;
+  pot-limit constraint refuses over-size raise; split-pot resolution (`omaha/__tests__/evaluator.test.ts`, `engine.test.ts`, `adapter.test.ts`)
 
 **Implementation risk:** High. Requires a new evaluator, a pot-limit bet constraint,
 and a new table UI. Sequence: evaluator → pot-limit logic → engine → UI.

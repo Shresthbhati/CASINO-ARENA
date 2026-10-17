@@ -146,8 +146,8 @@ export const GAMES: readonly GameSpec[] = [
     seats: 6, offersPlayerCount: true, maxOpponents: 5, buyInPresets: DEFAULT_PRESETS,
   },
   {
-    id: 'omaha', name: 'Pot-Limit Omaha', category: 'card', status: 'COMING_SOON',
-    notes: 'Not written. Omaha needs exactly-two hole cards, which the seven-card Hold\'em evaluator deliberately does not do.',
+    id: 'omaha', name: 'Pot-Limit Omaha', category: 'card', status: 'PLAYABLE',
+    notes: '',
     minBet: 20, maxBet: 5_000, minBuyIn: 1_000, maxBuyIn: 100_000,
     seats: 6, offersPlayerCount: true, maxOpponents: 5, buyInPresets: DEFAULT_PRESETS,
   },

@@ -623,7 +623,7 @@ export function HoldemFelt({
 
                     {/* Seat Hole Cards */}
                     <div className="flex items-center justify-center gap-1.5 my-1">
-                      {seat.holeCards.length === 2 ? (
+                      {seat.holeCards.length > 0 ? (
                         seat.holeCards.map((c, i) => (
                           <PlayingCard
                             key={`${seat.seatId}-c-${i}`}
@@ -721,7 +721,7 @@ export function HoldemFelt({
                   </div>
 
                   <div className="flex gap-1 my-1">
-                    {seat.holeCards.length === 2 ? (
+                    {seat.holeCards.length > 0 ? (
                       seat.holeCards.map((c, i) => (
                         <PlayingCard
                           key={`m-c-${seat.seatId}-${i}`}
@@ -806,7 +806,7 @@ export function HoldemFelt({
               </span>
               {/* On a phone this bar sits over the player's own seat, so the hand
                   being decided on is repeated here rather than hidden behind it. */}
-              {human && human.holeCards.length === 2 && (
+              {human && human.holeCards.length > 0 && (
                 <span className="flex items-center gap-1 sm:hidden short:!flex" aria-label="Your hole cards" data-testid="holdem-mini-hand">
                   {human.holeCards.map((c, i) => (
                     <span
