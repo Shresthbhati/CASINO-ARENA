@@ -30,7 +30,7 @@ const BLURB: Partial<Record<GameId, string>> = {
   'three-card-poker': 'Ante against the dealer, with Pair Plus on the side.',
   'teen-patti': 'A three-card showdown against the house.',
   'texas-holdem': 'No-limit against one to five AI opponents that learn how you play.',
-  omaha: 'Pot-limit Omaha is not open yet.',
+  omaha: 'Pot-limit Omaha against AI opponents with four hole cards.',
 };
 
 /** A typographic emblem per room: lettering on cloth, not a stock icon. */

@@ -214,7 +214,7 @@ export interface CasinoGame<TView> {
    * the end of it would be paying out chips nobody put down. Returning a
    * number here tells the session to post it first.
    */
-  stakeForAction(action: string): number;
+  stakeForAction(action: string, amount?: number): number;
   /**
    * Which zone an action's wager is booked against.
    *
@@ -434,8 +434,9 @@ export abstract class ZoneGame<TView> implements CasinoGame<TView> {
   }
 
   /** Most actions are free. Games with a wagering action override this. */
-  stakeForAction(action: string): number {
+  stakeForAction(action: string, amount?: number): number {
     void action;
+    void amount;
     return 0;
   }
 

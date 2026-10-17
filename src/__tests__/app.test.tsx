@@ -52,17 +52,12 @@ describe('the casino floor', () => {
     expect(screen.getByText(/no completed sessions yet/i)).toBeTruthy();
   });
 
-  it('will not open a room that has no engine', () => {
+  it('offers Omaha and Teen Patti because they are really playable', () => {
     render(<App />);
-    // The room is listed but refused: the registry marks it `COMING_SOON` and
-    // the factory cannot build it. The accessible name says *why* it is
-    // unavailable, so the button is distinguishable from a merely broken one.
-    //
-    // This used to be Texas Hold'em. Hold'em now has a real engine and is
-    // honestly `PLAYABLE`, so the refusal mechanism is asserted against Omaha,
-    // which genuinely has none — and Hold'em's playability is asserted below.
-    const omaha = screen.getByRole('button', { name: /pot-limit omaha is coming soon/i });
-    expect((omaha as HTMLButtonElement).disabled).toBe(true);
+    const omaha = screen.getByRole('button', { name: /enter pot-limit omaha/i });
+    expect((omaha as HTMLButtonElement).disabled).toBe(false);
+    const teenPatti = screen.getByRole('button', { name: /enter teen patti/i });
+    expect((teenPatti as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('offers Hold\'em because it is really playable', () => {
@@ -78,6 +73,8 @@ describe('the casino floor', () => {
       /enter european roulette/i,
       /enter baccarat royale/i,
       /enter texas hold'em/i,
+      /enter pot-limit omaha/i,
+      /enter teen patti/i,
     ]) {
       expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(false);
     }

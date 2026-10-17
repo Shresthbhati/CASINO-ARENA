@@ -422,12 +422,13 @@ describe('three card poker and teen patti', () => {
   it('resolves a Teen Patti showdown from the deal', () => {
     const g = new TeenPattiGame(bankroll, seeded(12));
     g.recordBet('blind', 100);
-    const round = g.playRound();
-    expect(round?.resolutions).toHaveLength(1);
-    const r = round?.resolutions[0];
-    expect(['WIN', 'LOSS']).toContain(r?.outcome as string);
-    // Ties go to the player: returned is 2x stake on a tie or a win.
-    expect(r?.returned === 200 || r?.returned === 0).toBe(true);
+    const initial = g.playRound();
+    expect(initial?.pending).toBe(true);
+    const round = g.act('SHOW');
+    expect(round?.pending).toBe(false);
+    expect(round?.resolutions.length).toBeGreaterThan(0);
+    const totalReturned = round?.resolutions.reduce((s, r) => s + r.returned, 0) ?? 0;
+    expect(totalReturned === 300 || totalReturned === 0).toBe(true);
   });
 });
 

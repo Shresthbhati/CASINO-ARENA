@@ -135,8 +135,8 @@ export const GAMES: readonly GameSpec[] = [
     notes: '', minBet: 10, maxBet: 5_000, minBuyIn: 500, maxBuyIn: 100_000, seats: 0, offersPlayerCount: false, buyInPresets: DEFAULT_PRESETS,
   },
   {
-    id: 'teen-patti', name: 'Teen Patti', category: 'card', status: 'BETA',
-    notes: 'Player-vs-house only; no multi-table opponents or pot-limit chaal.',
+    id: 'teen-patti', name: 'Teen Patti', category: 'card', status: 'PLAYABLE',
+    notes: 'Player-vs-house with progressive Chaal, blind/seen strategy, and pot-limit showdown.',
     minBet: 10, maxBet: 5_000, minBuyIn: 500, maxBuyIn: 100_000, seats: 0, offersPlayerCount: false, buyInPresets: DEFAULT_PRESETS,
   },
   {

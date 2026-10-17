@@ -79,9 +79,9 @@ export const TableHost: React.FC = () => {
     return res;
   };
 
-  const handleAct = (action: string) => {
+  const handleAct = (action: string, amount?: number) => {
     sound.chip();
-    const res = act(action);
+    const res = act(action, amount);
     if (res && res.resolutions.some((r) => r.outcome === 'WIN')) {
       sound.win();
     } else if (res && res.resolutions.some((r) => r.outcome === 'LOSS')) {
@@ -352,6 +352,7 @@ export const TableHost: React.FC = () => {
                   clearBets();
                 }}
                 onResolve={handleResolve}
+                onAct={handleAct}
                 announcement={announcement}
               />
             );

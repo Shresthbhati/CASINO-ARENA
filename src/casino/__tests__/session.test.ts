@@ -85,11 +85,16 @@ describe('the registry', () => {
       }),
     ).not.toBeNull();
 
-    // Omaha is still not written, and must stay refused.
-    expect(isPlayable('omaha')).toBe(false);
+    // Omaha is playable.
+    expect(isPlayable('omaha')).toBe(true);
     expect(
-      createEngine('omaha', { bankroll: () => 0, rng: engineRng(1) }),
-    ).toBeNull();
+      createEngine('omaha', {
+        bankroll: () => 0,
+        rng: engineRng(1),
+        wallet: CasinoWallet.fresh({ openingBalance: 1_000 }),
+        sessionId: 'registry-check-omaha',
+      }),
+    ).not.toBeNull();
   });
 
   it('only ever offers a buy-in to a room that can be entered', () => {
@@ -99,9 +104,9 @@ describe('the registry', () => {
     }
   });
 
-  it('marks teen patti beta and says why', () => {
+  it('marks teen patti playable and says why', () => {
     const spec = gameSpec('teen-patti');
-    expect(spec?.status).toBe('BETA');
+    expect(spec?.status).toBe('PLAYABLE');
     expect(spec?.notes).not.toBe('');
   });
 

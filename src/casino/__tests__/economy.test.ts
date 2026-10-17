@@ -288,6 +288,9 @@ describe('value is conserved across every room', () => {
       const wager = session.placeBet(zone, min * 5);
       if (!wager.ok) break;
       session.playRound();
+      if (session.legalActions().includes('SHOW')) {
+        session.act('SHOW');
+      }
       // The felt must never hold a negative or fractional balance.
       expect(session.bankroll()).toBeGreaterThanOrEqual(0);
       expect(Number.isInteger(session.bankroll())).toBe(true);
@@ -299,6 +302,10 @@ describe('value is conserved across every room', () => {
     for (let i = 0; i < 500 && !session.canEnd(); i += 1) {
       if (session.legalActions().includes('PUSH')) {
         session.act('PUSH');
+      } else if (session.legalActions().includes('SHOW')) {
+        session.act('SHOW');
+      } else if (session.legalActions().includes('FOLD')) {
+        session.act('FOLD');
       } else {
         session.playRound();
       }

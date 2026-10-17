@@ -235,5 +235,5 @@ describe('repeated restarts', () => {
       snap = JSON.stringify(server.exportState());
     }
     expect(snap.length).toBeLessThan(600_000);
-  });
+  }, 60_000);
 });

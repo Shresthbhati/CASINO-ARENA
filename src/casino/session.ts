@@ -328,7 +328,7 @@ export class TableSession<TView> {
     // stranded hands: the chips left the bankroll, the engine found no matching
     // wager, returned `null`, and the player was left holding an open hand with
     // no way to close it.
-    const stake = this.engine.stakeForAction(action);
+    const stake = this.engine.stakeForAction(action, amount);
     const zone = this.engine.actionZone(action);
 
     if (stake > 0) {
