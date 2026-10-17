@@ -25,6 +25,7 @@
  * | `casino.history.v1` | completed session summaries | **implemented** |
  * | `casino.achievements.v1` | trophy progress + unlock times | **implemented** |
  * | `casino.settings.v1` | difficulty + starting bankroll | **implemented** |
+ * | `casino.mastery.v1` | XP, daily quest progress, day streak, room tiers (never chips) | **implemented** |
  * | `casino.opponent.holdem.v1` | the Hold'em bots' learned read of the player (aggregate frequencies only) | **implemented** |
  *
  * **An in-progress session is intentionally NOT persisted.** A reload drops the
@@ -56,12 +57,14 @@ import { browserRepository } from '@/casino/games/holdem/opponent-model';
 import { gameSpec, isPlayable, maxOpponentsFor, playableGames, validateBuyIn } from '@/casino/registry';
 import { TableSession, unresolvedExposureReason, type SessionSummary } from '@/casino/session';
 import type { GameRound, EngineResult } from '@/casino/engine';
+import { applyRound as applyMastery, emptyMastery, sanitizeMastery, type MasteryNote, type MasteryState } from '@/casino/mastery';
 import type { GameId } from '@/types/arena';
 
 const WALLET_KEY = 'casino.wallet.v1';
 const HISTORY_KEY = 'casino.history.v1';
 const TROPHIES_KEY = 'casino.achievements.v1';
 const SETTINGS_KEY = 'casino.settings.v1';
+const MASTERY_KEY = 'casino.mastery.v1';
 
 /**
  * The AI difficulties a player may pick.
@@ -219,6 +222,11 @@ export interface CasinoState {
   readonly streak: { readonly current: number; readonly best: number };
   /** True while the trophy pane should be marked as sample content. */
   readonly demoMode: boolean;
+  /** XP, level, daily quests, day streak and room tiers. Pays XP only, never chips. */
+  readonly mastery: MasteryState;
+  /** Unseen level-ups, quest completions and tier-ups, for the toast. */
+  readonly masteryNotes: readonly MasteryNote[];
+  dismissMasteryNotes: () => void;
 
   openGame: (id: GameId) => void;
   setBuyIn: (amount: number) => void;
@@ -425,6 +433,17 @@ function applyTrophies(
   return { trophies: next, streak: { current: nextStreak, best: bestStreak } };
 }
 
+/** Local calendar day, `YYYY-MM-DD`: the quest board turns over at the player's midnight. */
+export function localDayKey(now: Date = new Date()): string {
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${m}-${d}`;
+}
+
+function loadMastery(): MasteryState {
+  return sanitizeMastery(readJson(MASTERY_KEY), localDayKey());
+}
+
 const initialWallet = loadWallet();
 // A live table is never persisted, but its buy-in is (it is a ledger entry). So a
 // reload or a closed tab can leave a session open in the saved ledger with nobody
@@ -467,6 +486,9 @@ export const useCasinoStore = create<CasinoState>((set, get) => ({
   trophies: loadTrophies(),
   streak: { current: 0, best: 0 },
   demoMode: false,
+  mastery: loadMastery(),
+  masteryNotes: [],
+  dismissMasteryNotes: () => set({ masteryNotes: [] }),
 
   /** Persist the wallet and refresh every derived figure the UI reads. */
   commit: () => {
@@ -693,11 +715,22 @@ export const useCasinoStore = create<CasinoState>((set, get) => ({
       streak,
     );
 
+    const mastered = applyMastery(
+      get().mastery,
+      { gameId: round.gameId, settled: settled.length > 0, won: wonRounds > 0, winRun: applied.streak.current },
+      localDayKey(),
+      playableGames().map((g) => g.id),
+      (id) => gameSpec(id)?.name ?? id,
+    );
+    writeJson(MASTERY_KEY, mastered.state);
+
     set({
       lastRound: round,
       announcement: round.announcement,
       trophies: applied.trophies,
       streak: applied.streak,
+      mastery: mastered.state,
+      masteryNotes: [...get().masteryNotes, ...mastered.notes].slice(-6),
     });
     get().commit();
   },
@@ -791,7 +824,11 @@ export const useCasinoStore = create<CasinoState>((set, get) => ({
     writeJson(WALLET_KEY, fresh.snapshot());
     writeJson(HISTORY_KEY, []);
     saveTrophies([]);
+    const freshMastery = emptyMastery(localDayKey());
+    writeJson(MASTERY_KEY, freshMastery);
     set({
+      mastery: freshMastery,
+      masteryNotes: [],
       wallet: fresh,
       summary: fresh.summary(),
       inventory: fresh.inventory(),

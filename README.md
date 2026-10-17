@@ -20,6 +20,9 @@ deck, three actions. Built to feel like a product, not a classroom exercise.
 - Integer-cent accounting; the bankroll can never go negative
 - **Your session survives a page refresh** — bankroll, statistics and preferences
 - Session statistics with a clearly-labelled win rate (pushes excluded) and net insurance
+- **Mastery layer** (`src/casino/mastery.ts`) — XP and levels, three daily quests, a
+  forgiving day streak and Bronze→Platinum tiers per room. It pays **XP only, never
+  chips**, and XP per round is flat, so bigger bets do not level you faster
 - Keyboard playable: `H` hit · `S` stand · `D` double · `P` split · `R` surrender ·
   `Enter` deal
 - Reduced-motion support (OS setting **and** an in-app toggle)

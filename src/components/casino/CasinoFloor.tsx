@@ -12,6 +12,8 @@ import { DENOMINATIONS } from '@/arena/core/chips';
 import { useCasinoStore } from '@/store/casinoStore';
 import type { GameId } from '@/types/arena';
 import { sound } from './Sound';
+import { MasteryPanel } from './MasteryPanel';
+import { roomTier } from '@/casino/mastery';
 
 
 /**
@@ -107,6 +109,7 @@ export const CasinoFloor: React.FC = () => {
       <p role="status" aria-live="polite" className={`mt-3 text-sm text-muted ${announcement === 'Choose a room to begin.' ? 'sr-only' : ''}`}>
         {announcement}
       </p>
+      <MasteryPanel />
       </>)}
 
       {screen === 'buy-in' ? (
@@ -150,6 +153,7 @@ export const CasinoFloor: React.FC = () => {
 
 const RoomPlaque: React.FC<{ room: GameSpec; onOpen: (id: GameId) => void }> = ({ room, onOpen }) => {
   const playable = isPlayable(room.id);
+  const tier = roomTier(useCasinoStore((s) => s.mastery.roomRounds[room.id] ?? 0));
   const comingSoon = room.status === 'COMING_SOON';
   return (
     <li className={`flex gap-4 bg-panel p-4 sm:p-5 ${comingSoon ? 'opacity-70' : ''}`}>
@@ -163,7 +167,11 @@ const RoomPlaque: React.FC<{ room: GameSpec; onOpen: (id: GameId) => void }> = (
         <h3 className="font-display text-xl font-semibold text-cream">
           {room.name}
           {room.status === 'BETA' && <span className="ml-2 align-middle text-xs font-normal text-gold">Beta</span>}
+          {tier.name ? <span className="ml-2 align-middle text-xs font-normal text-gold" data-testid="room-tier">{tier.name}</span> : null}
         </h3>
+        {playable && tier.toNext !== null ? (
+          <p className="text-xs text-muted tnum">{tier.toNext} {tier.toNext === 1 ? 'round' : 'rounds'} to {tier.nextName}</p>
+        ) : null}
         <p className="mt-1 text-sm leading-snug text-muted">{BLURB[room.id] ?? room.notes}</p>
         <p className="mt-2 text-xs text-muted tnum">
           Bets {room.minBet.toLocaleString()} to {room.maxBet.toLocaleString()} · buy in from {room.minBuyIn.toLocaleString()}

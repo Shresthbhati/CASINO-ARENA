@@ -50,6 +50,7 @@ const WALLET_KEY = 'casino.wallet.v1';
 const HISTORY_KEY = 'casino.history.v1';
 const TROPHIES_KEY = 'casino.achievements.v1';
 const SETTINGS_KEY = 'casino.settings.v1';
+const MASTERY_KEY = 'casino.mastery.v1';
 
 beforeEach(() => {
   // `resetEverything` clears every persisted key through the store's own
@@ -131,8 +132,8 @@ describe('settings persist and are validated on the way back in', () => {
   });
 });
 
-describe('the store writes exactly the four documented keys', () => {
-  it('persists the wallet, history, trophies and settings — and nothing else', () => {
+describe('the store writes exactly the five documented keys', () => {
+  it('persists the wallet, history, trophies, settings and mastery — and nothing else', () => {
     const storage = memoryStorage();
     Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
     try {
@@ -146,11 +147,11 @@ describe('the store writes exactly the four documented keys', () => {
         if (k) keys.push(k);
       }
 
-      // The four documented keys — and no active-session key, because an
+      // The five documented keys — and no active-session key, because an
       // in-progress session is intentionally not persisted.
       expect(keys).toContain(WALLET_KEY);
       expect(keys).toContain(SETTINGS_KEY);
-      const allowed = [WALLET_KEY, HISTORY_KEY, TROPHIES_KEY, SETTINGS_KEY];
+      const allowed = [WALLET_KEY, HISTORY_KEY, TROPHIES_KEY, SETTINGS_KEY, MASTERY_KEY];
       expect(keys.every((k) => allowed.includes(k)), `unexpected key: ${keys.join(', ')}`).toBe(true);
 
       const settings = JSON.parse(storage.getItem(SETTINGS_KEY) as string) as Record<string, unknown>;

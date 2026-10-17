@@ -17,6 +17,7 @@ import { WalletView } from '@/components/casino/WalletView';
 import { ProfileView } from '@/components/casino/ProfileView';
 import { PracticeView } from '@/components/casino/PracticeView';
 import { CasinoNav } from '@/components/casino/CasinoNav';
+import { MasteryToasts } from '@/components/casino/MasteryToasts';
 import { gameSpec } from '@/casino/registry';
 import { DESKTOP_QUERY, useMediaQuery } from '@/lib/useMediaQuery';
 import { useImmersive } from '@/lib/immersive';
@@ -58,6 +59,7 @@ export default function App() {
         Skip to main content
       </a>
       <CasinoNav />
+      <MasteryToasts />
 
       {!online || updateReady ? (
         <div role="status" className="flex w-full flex-wrap items-center justify-center gap-x-4 gap-y-2 border-b border-gold-dim/50 bg-felt-deep px-4 py-2 text-center text-sm text-cream">

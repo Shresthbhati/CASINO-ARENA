@@ -313,3 +313,28 @@ describe('nothing is granted before it is earned', () => {
     expect(progressOf('rounds-10')).toBe(1);
   });
 });
+describe('mastery is fed by real settled rounds and pays no chips', () => {
+  it('starts empty, earns XP per settled round and never touches the wallet', () => {
+    const before = useCasinoStore.getState();
+    expect(before.mastery.xp).toBe(0);
+    const balance = before.wallet.balance();
+
+    useCasinoStore.getState().absorbRound(round(500, 1));
+    useCasinoStore.getState().absorbRound(round(-1_000, 2));
+
+    const after = useCasinoStore.getState();
+    expect(after.mastery.xp).toBeGreaterThan(0);
+    expect(after.mastery.roomRounds.roulette).toBe(2);
+    expect(after.masteryNotes.some((n) => n.kind === 'discovery')).toBe(true);
+    expect(after.wallet.balance()).toBe(balance);
+    expect(after.wallet.verify()).toEqual([]);
+  });
+
+  it('is cleared by a reset, so a new casino inherits no level', () => {
+    useCasinoStore.getState().absorbRound(round(500, 1));
+    expect(useCasinoStore.getState().mastery.xp).toBeGreaterThan(0);
+    useCasinoStore.getState().resetEverything();
+    expect(useCasinoStore.getState().mastery.xp).toBe(0);
+    expect(useCasinoStore.getState().masteryNotes).toEqual([]);
+  });
+});
