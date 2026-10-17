@@ -25,23 +25,31 @@ describe('measured return to player agrees with theory', () => {
     // one lab only; every assertion is unchanged.
   }, 60_000);
 
-  it('sic bo: big and small return 105/216 x 2 (a triple kills both)', () => {
-    const results = measure('sic-bo', 20_000);
-    for (const zone of ['big', 'small']) {
-      const r = results.find((x) => x.zone === zone);
-      expect(r, zone).toBeTruthy();
-      expect(Math.abs(r?.zScore ?? 99)).toBeLessThan(FOUR_SIGMA);
-    }
-  });
+  it(
+    'sic bo: big and small return 105/216 x 2 (a triple kills both)',
+    () => {
+      const results = measure('sic-bo', 20_000);
+      for (const zone of ['big', 'small']) {
+        const r = results.find((x) => x.zone === zone);
+        expect(r, zone).toBeTruthy();
+        expect(Math.abs(r?.zScore ?? 99)).toBeLessThan(FOUR_SIGMA);
+      }
+    },
+    60_000,
+  );
 
-  it('baccarat: player, banker (5% commission) and tie (8:1) match the published figures', () => {
-    const results = measure('baccarat', 40_000);
-    for (const zone of ['player', 'banker', 'tie']) {
-      const r = results.find((x) => x.zone === zone);
-      expect(r, zone).toBeTruthy();
-      expect(Math.abs(r?.zScore ?? 99), `${zone} z=${r?.zScore}`).toBeLessThan(FOUR_SIGMA);
-    }
-  });
+  it(
+    'baccarat: player, banker (5% commission) and tie (8:1) match the published figures',
+    () => {
+      const results = measure('baccarat', 40_000);
+      for (const zone of ['player', 'banker', 'tie']) {
+        const r = results.find((x) => x.zone === zone);
+        expect(r, zone).toBeTruthy();
+        expect(Math.abs(r?.zScore ?? 99), `${zone} z=${r?.zScore}`).toBeLessThan(FOUR_SIGMA);
+      }
+    },
+    60_000,
+  );
 
   it('is reproducible: the same seed measures the same numbers', () => {
     expect(measure('sic-bo', 2_000, 9)).toEqual(measure('sic-bo', 2_000, 9));
