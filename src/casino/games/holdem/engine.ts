@@ -95,6 +95,17 @@ export interface HoldemConfig {
   readonly blinds: BlindConfig;
   /** Seat index of the local player. Exactly one per table. */
   readonly humanSeatIndex: number;
+  /**
+   * Let the bots read every human seat from what that seat has done at THIS table.
+   *
+   * Off for solo play, where the one human is read through the persisted profile
+   * (`setOpponentEstimate`). On for Party tables, where there is no profile and each
+   * human would otherwise be invisible to the bots. The read is per seat, built from
+   * public actions only, lives in this table's memory and is never persisted or
+   * shown: one player's habits can never shape what a bot does against another, and
+   * nothing is carried from one table to the next.
+   */
+  readonly readHumansInSession?: boolean;
   /** AI difficulty, 70-95. Affects policy quality only. */
   readonly difficulty: number;
   /** Opening stack for the human. The wallet must fund at least this. */
@@ -1304,16 +1315,18 @@ export class HoldemTable {
   }
 
   /**
-   * What seat `index` has learned about each other BOT from public actions.
+   * What seat `index` has learned about each other seat from public actions.
    *
-   * The human is deliberately absent: the persisted, cross-session model in
-   * `this.opponent` is the richer read of the human and must not be shadowed by a
-   * thin in-session one.
+   * A human seat is read only when `readHumansInSession` is on, and never when the
+   * persisted, cross-session model in `this.opponent` already covers it: that read
+   * is richer and must not be shadowed by a thin in-session one. Each seat has its
+   * own model, so a read of one player cannot be influenced by another.
    */
   private botReads(index: number): Record<number, OpponentEstimate> {
     const reads: Record<number, OpponentEstimate> = {};
     this.seats.forEach((s, i) => {
-      if (i === index || s.isHuman) return;
+      if (i === index) return;
+      if (s.isHuman && (!this.config.readHumansInSession || this.opponent?.seatIndex === i)) return;
       reads[i] = this.modelOf(i).estimate();
     });
     return reads;

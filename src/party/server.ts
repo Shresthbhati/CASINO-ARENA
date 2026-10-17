@@ -743,6 +743,8 @@ export class PartyServer {
         seats,
         blinds: { smallBlind: config.smallBlind, bigBlind: config.bigBlind },
         humanSeatIndex: 0,
+        // Every human is read separately from this table's public actions, in memory only.
+        readHumansInSession: true,
         difficulty: 80,
         humanStartingStack: config.startingChips,
         // Bots decide through the same adaptive policy and the same engine validation as any seat.
