@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Casino Arena">
+  <rect width="512" height="512" rx="104" fill="#121012"/>
+  <rect x="26" y="26" width="460" height="460" rx="82" fill="none" stroke="#b8995a" stroke-width="8"/>
+  <rect x="46" y="46" width="420" height="420" rx="64" fill="none" stroke="#6b1f2e" stroke-width="4"/>
+  <text x="256" y="338" font-family="Georgia, 'Times New Roman', serif" font-size="240" font-weight="700" text-anchor="middle" fill="#eee6d4">21</text>
+  <path d="M256 92l22 30h-44z" fill="#b8995a"/>
+</svg>

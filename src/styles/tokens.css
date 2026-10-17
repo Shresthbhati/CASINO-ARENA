@@ -1,0 +1,459 @@
+@import 'tailwindcss';
+
+/* ── BLACKJACK design tokens ────────────────────────────────────────────────
+   Every value below is referenced somewhere. Delete a token when it stops
+   being used; do not leave dead tokens "for later".                            */
+
+@theme {
+  /* Surfaces */
+  /* Members' club: warm charcoal rooms, brass fittings, oxblood leather, and
+     baize green reserved for the surfaces where cards are actually played. */
+  --color-void: #121012;
+  --color-table: #151316;
+  --color-felt: #1f4d38;
+  --color-felt-deep: #173b2a;
+  --color-felt-edge: #0f261b;
+  --color-rail: #2a1a1c;
+  --color-panel: #1a171a;
+  --color-panel-deep: #110f11;
+  --color-panel-raise: #221e22;
+  --color-oxblood: #6b1f2e;
+  --color-oxblood-bright: #8c2a3d;
+
+  /* Accents: brass, not yellow */
+  --color-gold: #b8995a;
+  --color-gold-bright: #dcc388;
+  --color-gold-dim: #aa935c;
+  /* Secondary brass TEXT: readable (>= 4.5:1) on felt and oxblood as well as on charcoal. gold-dim is for rules and fills. */
+  --color-gold-soft: #d0b67a;
+
+  /* Ink */
+  --color-cream: #eee6d4;
+  --color-ink: #17130f;
+  --color-muted: #bfb6a3;
+
+  /* Semantic */
+  --color-win: #4cb782;
+  --color-loss: #d4574e;
+  --color-push: #c9a86a;
+  --color-warn: #e0a13c;
+
+  /* Suit colours */
+  --color-suit-red: #c0392b;
+  --color-suit-black: #1b1f24;
+
+  /* Type */
+  /* Loaded in index.html. (They used to be named here but never loaded, so the
+     app rendered Georgia and Consolas.) */
+  --font-display: 'Fraunces', 'Iowan Old Style', 'Georgia', serif;
+  --font-sans: 'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Instrument Sans', ui-monospace, Menlo, Consolas, monospace;
+
+  /* Radii */
+  --radius-table: 2.5rem;
+  --radius-card: 0.75rem;
+  --radius-control: 0.625rem;
+  --radius-chip: 9999px;
+
+  /* Elevation */
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 20px -6px rgb(0 0 0 / 0.55);
+  --shadow-raise: 0 12px 32px -12px rgb(0 0 0 / 0.7);
+  --shadow-inset-felt: inset 0 0 80px 10px rgb(0 0 0 / 0.45);
+
+  /* Motion — a single documented scale, used everywhere */
+  --ease-snap: cubic-bezier(0.2, 0.9, 0.3, 1);
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-void);
+    color: var(--color-cream);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Money must never jitter as digits change. */
+  .tnum {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* The app's small labels were set in a monospace face; with the real type pair
+     loaded they read as the same sans, with tabular figures so stacks never jitter. */
+  .font-mono {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-gold-bright);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  /* Taps must not wait for a double-tap-to-zoom decision, and text must not be resized by the browser. */
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  button,
+  [role='button'],
+  [role='tab'],
+  a,
+  input,
+  select,
+  summary,
+  label {
+    touch-action: manipulation;
+  }
+
+  /* Precise pointers: nothing a person can click is smaller than 24 x 24 CSS px (WCAG 2.5.8 AA), whatever
+     it looks like (text-style buttons, summaries, checkboxes). */
+  button,
+  [role='button'],
+  summary {
+    min-height: 1.5rem;
+  }
+  input[type='checkbox'],
+  input[type='radio'] {
+    width: 1.5rem;
+    height: 1.5rem;
+    accent-color: var(--color-gold);
+  }
+
+  /* Touch devices: every control is at least 44 x 44 CSS px, and form text is 16px so iOS does not
+     zoom the page on focus. Keyed on the pointer, not the width: a laptop window narrowed to 400px
+     keeps its precise-pointer layout, and a tablet in landscape keeps its touch targets. */
+  @media (pointer: coarse) {
+    button,
+    [role='button'],
+    [role='tab'],
+    summary,
+    select,
+    a[href] {
+      min-height: 2.75rem;
+    }
+    button,
+    [role='button'],
+    summary {
+      min-width: 2.75rem;
+    }
+    input:not([type='checkbox']):not([type='radio']),
+    select,
+    textarea {
+      min-height: 2.75rem;
+      font-size: 16px;
+    }
+    input[type='checkbox'],
+    input[type='radio'] {
+      width: 1.5rem;
+      height: 1.5rem;
+    }
+  }
+}
+
+/* Safe areas (notches, rounded corners, the home indicator). They are 0 where there is none. */
+@utility safe-t {
+  padding-top: env(safe-area-inset-top);
+}
+@utility safe-b {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+/* A table's controls dock: on phones and tablets the chip rack and primary action stick to the bottom
+   of the screen (full-bleed, solid, clear of the home indicator) so betting never scrolls out of reach;
+   on laptops it is an ordinary panel. */
+/* A short viewport: a phone held sideways. Vertical space, not width, is what is scarce there. */
+@custom-variant short (@media (max-height: 520px));
+/* A tall viewport: tall enough that a laptop table's felt and its sticky controls dock both fit on screen
+   (felt of at least 560px plus the table lines and a 155px dock; verified by scripts/qa/dock-geometry.mjs). */
+@custom-variant tall (@media (min-height: 960px));
+
+@utility dock {
+  @media (max-width: 1023.98px) {
+    position: sticky;
+    bottom: 0;
+    z-index: 30;
+    align-self: stretch;
+    /* The dock runs edge to edge: it bleeds out past its page's side padding, which a table sets with
+       --dock-bleed (0.75rem by default, matching px-3). */
+    width: calc(100% + 2 * var(--dock-bleed, 0.75rem));
+    max-width: none;
+    margin-inline: calc(var(--dock-bleed, 0.75rem) * -1);
+    border-radius: 0;
+    border-width: 1px 0 0 0;
+    border-color: color-mix(in srgb, var(--color-gold-dim) 40%, transparent);
+    background: var(--color-panel-deep);
+    padding: 0.5rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom));
+    box-shadow: 0 -12px 24px -12px rgb(0 0 0 / 0.85);
+
+    /* Sideways: the dock's parts sit in one row instead of a stack, so the table keeps its height. */
+    @media (max-height: 520px) {
+      flex-direction: row !important;
+      flex-wrap: wrap !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 0.375rem 1rem !important;
+      padding-block: 0.375rem calc(0.375rem + env(safe-area-inset-bottom));
+    }
+  }
+}
+
+@utility safe-x {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* ── Motion ─────────────────────────────────────────────────────────────────
+   Fast (120-180ms) for controls, medium (250-400ms) for cards, dramatic
+   (400-700ms) for results. Anything slower would make play feel sluggish.  */
+
+@keyframes deal-in {
+  from {
+    opacity: 0;
+    transform: translate3d(var(--deal-from-x, 0), var(--deal-from-y, -14rem), 0) rotate(-14deg) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+}
+
+@keyframes flip-in {
+  from {
+    transform: rotateY(90deg);
+  }
+  to {
+    transform: rotateY(0deg);
+  }
+}
+
+@keyframes settle {
+  0% {
+    transform: translateY(-6px) scale(1.04);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes result-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.94);
+  }
+  60% {
+    transform: translateY(0) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes bankroll-tick {
+  0% {
+    color: var(--color-gold-bright);
+    transform: scale(1.06);
+  }
+  100% {
+    color: inherit;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.anim-deal {
+  animation: deal-in 320ms var(--ease-snap) both;
+}
+
+.anim-flip {
+  animation: flip-in 360ms var(--ease-snap) both;
+}
+
+.anim-settle {
+  animation: settle 220ms var(--ease-soft) both;
+}
+
+.anim-result {
+  animation: result-pop 460ms var(--ease-snap) both;
+}
+
+.anim-bankroll {
+  animation: bankroll-tick 520ms var(--ease-soft) both;
+}
+
+/* Card back patterns — pure CSS, zero image assets */
+.card-back-pattern,
+.card-back-lattice {
+  background-color: #123a5c;
+  background-image:
+    repeating-linear-gradient(45deg, rgb(255 255 255 / 0.07) 0 2px, transparent 2px 6px),
+    repeating-linear-gradient(-45deg, rgb(255 255 255 / 0.07) 0 2px, transparent 2px 6px),
+    radial-gradient(circle at 50% 50%, rgb(201 168 106 / 0.28) 0 22%, transparent 23%);
+}
+
+.card-back-geometric {
+  background-color: #1e1b2e;
+  background-image:
+    radial-gradient(circle at 50% 50%, rgb(201 168 106 / 0.35) 0%, transparent 40%),
+    repeating-conic-gradient(from 45deg at 50% 50%, rgb(201 168 106 / 0.12) 0deg 45deg, transparent 45deg 90deg);
+  background-size: 100% 100%, 16px 16px;
+}
+
+.card-back-matrix {
+  background-color: #141618;
+  background-image:
+    linear-gradient(0deg, rgba(201, 168, 106, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(201, 168, 106, 0.08) 1px, transparent 1px);
+  background-size: 8px 8px;
+}
+
+.card-back-crest {
+  background-color: #3b1115;
+  background-image:
+    radial-gradient(ellipse at center, rgba(201, 168, 106, 0.2) 0%, transparent 60%),
+    repeating-linear-gradient(60deg, rgba(255, 255, 255, 0.04) 0 3px, transparent 3px 9px);
+}
+
+.card-face-pattern {
+  background-image: linear-gradient(160deg, #fffdf7 0%, #f4efe2 55%, #eae1cd 100%);
+}
+
+/* 3D Flip Card classes */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.transform-style-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+/* ── Felt Themes ─────────────────────────────────────────────────────────── */
+[data-felt='emerald'] {
+  --color-felt: #16452f;
+  --color-felt-deep: #103425;
+  --color-felt-edge: #0a2016;
+}
+
+[data-felt='navy'] {
+  --color-felt: #142a42;
+  --color-felt-deep: #0e1e30;
+  --color-felt-edge: #07101a;
+}
+
+[data-felt='crimson'] {
+  --color-felt: #481419;
+  --color-felt-deep: #330d11;
+  --color-felt-edge: #1e0608;
+}
+
+[data-felt='slate'] {
+  --color-felt: #1c2227;
+  --color-felt-deep: #14181c;
+  --color-felt-edge: #0c0e11;
+}
+
+/* ── Bot Emotion Animations (200-900ms) ─────────────────────────────────── */
+@keyframes emotion-nod {
+  0% { transform: translateY(0) rotate(0deg); }
+  35% { transform: translateY(3px) rotate(1deg); }
+  65% { transform: translateY(1px) rotate(-0.5deg); }
+  100% { transform: translateY(0) rotate(0deg); }
+}
+
+@keyframes emotion-bounce {
+  0%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-4px) scale(1.02); }
+  70% { transform: translateY(-1px); }
+}
+
+@keyframes emotion-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2.5px) rotate(-1deg); }
+  50% { transform: translateX(2.5px) rotate(1deg); }
+  75% { transform: translateX(-1px); }
+}
+
+@keyframes emotion-droop {
+  0% { transform: translateY(0); }
+  45% { transform: translateY(3px) scale(0.98); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+@keyframes emotion-celebrate {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.08) translateY(-4px); }
+  60% { transform: scale(1.03) translateY(-1px); }
+  100% { transform: scale(1) translateY(0); }
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(201, 168, 106, 0.4); }
+  70% { box-shadow: 0 0 0 8px rgba(201, 168, 106, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(201, 168, 106, 0); }
+}
+
+.anim-nod { animation: emotion-nod 450ms var(--ease-soft) both; }
+.anim-bounce { animation: emotion-bounce 380ms var(--ease-snap) both; }
+.anim-shake { animation: emotion-shake 400ms var(--ease-soft) both; }
+.anim-droop { animation: emotion-droop 500ms var(--ease-soft) both; }
+.anim-celebrate { animation: emotion-celebrate 650ms var(--ease-snap) both; }
+.anim-pulse-ring { animation: pulse-ring 1.8s infinite; }
+
+/* ── Reduced motion ─────────────────────────────────────────────────────────
+   Honoured from the OS, and separately from the in-app setting via the
+   data attribute on <html>. Both paths collapse animation to a no-op.       */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+[data-reduce-motion='true'] *,
+[data-reduce-motion='true'] *::before,
+[data-reduce-motion='true'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}

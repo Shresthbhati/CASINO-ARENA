@@ -1,0 +1,265 @@
+{
+ "learner": "legacy",
+ "seeds": 200,
+ "pre": 150,
+ "post": 150,
+ "passive > aggressive": {
+  "pfr": {
+   "truthFrom": 0.02975,
+   "truthTo": 0.6007,
+   "steadyError": 0.008931964010111428,
+   "jitter": 0.018649861843948824,
+   "t50": 27,
+   "t80": 72,
+   "errorAtEnd": 0.06411234682697864
+  },
+  "raiseVsBet": {
+   "truthFrom": 0.026285160038797283,
+   "truthTo": 0.584283636920251,
+   "steadyError": 0.011161099348919155,
+   "jitter": 0.017787841362852504,
+   "t50": 22,
+   "t80": 55,
+   "errorAtEnd": 0.06281593837689547
+  },
+  "betWhenChecked": {
+   "truthFrom": 0.051435475519245155,
+   "truthTo": 0.6546263152185704,
+   "steadyError": 0.02990377870126488,
+   "jitter": 0.02629938702749884,
+   "t50": 48,
+   "t80": 132,
+   "errorAtEnd": 0.10468565432633092
+  },
+  "showdown": {
+   "truthFrom": 0.585572924135953,
+   "truthTo": 0.33181495826741586,
+   "steadyError": 0.03124459577466146,
+   "jitter": 0.058186134170622364,
+   "t50": 19,
+   "t80": 48,
+   "errorAtEnd": 0.003958416138701293
+  }
+ },
+ "aggressive > passive": {
+  "pfr": {
+   "truthFrom": 0.6007,
+   "truthTo": 0.02975,
+   "steadyError": 0.053962086155094964,
+   "jitter": 0.05249644403536962,
+   "t50": 21,
+   "t80": 53,
+   "errorAtEnd": 0.0134360156236768
+  },
+  "raiseVsBet": {
+   "truthFrom": 0.584283636920251,
+   "truthTo": 0.026285160038797283,
+   "steadyError": 0.05653332105140826,
+   "jitter": 0.053212860808204504,
+   "t50": 16,
+   "t80": 41,
+   "errorAtEnd": 0.012856596238238049
+  },
+  "betWhenChecked": {
+   "truthFrom": 0.6546263152185704,
+   "truthTo": 0.051435475519245155,
+   "steadyError": 0.04756823731010895,
+   "jitter": 0.06171704827737798,
+   "t50": 46,
+   "t80": 123,
+   "errorAtEnd": 0.08907648610614494
+  },
+  "showdown": {
+   "truthFrom": 0.33181495826741586,
+   "truthTo": 0.585572924135953,
+   "steadyError": 0.007081818192725834,
+   "jitter": 0.053103783977833864,
+   "t50": 34,
+   "t80": 108,
+   "errorAtEnd": 0.03994585593231448
+  }
+ },
+ "aggressive > tight": {
+  "vpip": {
+   "truthFrom": 0.9019388954171563,
+   "truthTo": 0.20044059333235423,
+   "steadyError": 0.06212173333569428,
+   "jitter": 0.0321190328789288,
+   "t50": 24,
+   "t80": 61,
+   "errorAtEnd": 0.02071197277086409
+  },
+  "pfr": {
+   "truthFrom": 0.6007,
+   "truthTo": 0.048075,
+   "steadyError": 0.053962086155094964,
+   "jitter": 0.05249644403536962,
+   "t50": 21,
+   "t80": 53,
+   "errorAtEnd": 0.010663106810836959
+  },
+  "foldToBet": {
+   "truthFrom": 0.09846165620694933,
+   "truthTo": 0.7750915569632782,
+   "steadyError": 0.03682779885128153,
+   "jitter": 0.03217377624477394,
+   "t50": 22,
+   "t80": 57,
+   "errorAtEnd": 0.03595037486479913
+  },
+  "foldToBet.small": {
+   "truthFrom": 0.09821428571428571,
+   "truthTo": 0.7761215841005407,
+   "steadyError": 0.03383778922602004,
+   "jitter": 0.04141676298143498,
+   "t50": 65,
+   "t80": "never",
+   "errorAtEnd": 0.16023843333639043
+  },
+  "foldToBet.medium": {
+   "truthFrom": 0.09849997148234757,
+   "truthTo": 0.776705565529623,
+   "steadyError": 0.03902864898041901,
+   "jitter": 0.039650065428114535,
+   "t50": 61,
+   "t80": "never",
+   "errorAtEnd": 0.1481939166342282
+  },
+  "foldToBet.large": {
+   "truthFrom": 0.09867019745552932,
+   "truthTo": 0.7724210211109448,
+   "steadyError": 0.05731161042879775,
+   "jitter": 0.04145498545419748,
+   "t50": 56,
+   "t80": "never",
+   "errorAtEnd": 0.13972565109507684
+  },
+  "raiseVsBet": {
+   "truthFrom": 0.584283636920251,
+   "truthTo": 0.04602593289122043,
+   "steadyError": 0.05653332105140826,
+   "jitter": 0.053212860808204504,
+   "t50": 19,
+   "t80": 50,
+   "errorAtEnd": 0.010275454100893602
+  },
+  "betWhenChecked": {
+   "truthFrom": 0.6546263152185704,
+   "truthTo": 0.24812850904553962,
+   "steadyError": 0.04756823731010895,
+   "jitter": 0.06171704827737798,
+   "t50": 115,
+   "t80": "never",
+   "errorAtEnd": 0.17035422544810586
+  },
+  "showdown": {
+   "truthFrom": 0.33181495826741586,
+   "truthTo": 0.16714922920416309,
+   "steadyError": 0.007081818192725834,
+   "jitter": 0.053103783977833864,
+   "t50": 69,
+   "t80": "never",
+   "errorAtEnd": 0.04686801404149568
+  }
+ },
+ "tight > loose": {
+  "vpip": {
+   "truthFrom": 0.20044059333235423,
+   "truthTo": 0.5993182886694876,
+   "steadyError": 0.02176561431836556,
+   "jitter": 0.04785498628233316,
+   "t50": 27,
+   "t80": 72,
+   "errorAtEnd": 0.03454994024074565
+  },
+  "pfr": {
+   "truthFrom": 0.048075,
+   "truthTo": 0.1994,
+   "steadyError": 0.011115766684680386,
+   "jitter": 0.024398464258022234,
+   "t50": 22,
+   "t80": 55,
+   "errorAtEnd": 0.011204557971983053
+  },
+  "foldToBet": {
+   "truthFrom": 0.7750915569632782,
+   "truthTo": 0.37081385263068817,
+   "steadyError": 0.042982960189237536,
+   "jitter": 0.05081344183408595,
+   "t50": 18,
+   "t80": 46,
+   "errorAtEnd": 0.01231521116857337
+  },
+  "foldToBet.small": {
+   "truthFrom": 0.7761215841005407,
+   "truthTo": 0.3759131042368037,
+   "steadyError": 0.07435610870754389,
+   "jitter": 0.06154050373934851,
+   "t50": 37,
+   "t80": 99,
+   "errorAtEnd": 0.043912087594251914
+  },
+  "foldToBet.medium": {
+   "truthFrom": 0.776705565529623,
+   "truthTo": 0.3644925230671333,
+   "steadyError": 0.05674921656577193,
+   "jitter": 0.05953532306452165,
+   "t50": 43,
+   "t80": 129,
+   "errorAtEnd": 0.0634191672563631
+  },
+  "foldToBet.large": {
+   "truthFrom": 0.7724210211109448,
+   "truthTo": 0.37201948010878505,
+   "steadyError": 0.0359269292887723,
+   "jitter": 0.06229178906254863,
+   "t50": 47,
+   "t80": 127,
+   "errorAtEnd": 0.06611588977160388
+  },
+  "showdown": {
+   "truthFrom": 0.16714922920416309,
+   "truthTo": 0.3443331816112881,
+   "steadyError": 0.018742023741721858,
+   "jitter": 0.05157605839662537,
+   "t50": 31,
+   "t80": 94,
+   "errorAtEnd": 0.019560583185352032
+  }
+ },
+ "singleAction": {
+  "passiveFolds": {
+   "vpip": 0,
+   "pfr": 0,
+   "foldToBet": 0.026291062605176392,
+   "foldToBet.small": 0,
+   "foldToBet.medium": 0.03150426036117523,
+   "foldToBet.large": 0,
+   "raiseVsBet": 0.0008480172993573391,
+   "betWhenChecked": 0,
+   "showdown": 0
+  },
+  "tightRaises": {
+   "vpip": 0,
+   "pfr": 0,
+   "foldToBet": 0.022333838394365587,
+   "foldToBet.small": 0,
+   "foldToBet.medium": 0.029790498847190917,
+   "foldToBet.large": 0,
+   "raiseVsBet": 0.027358453441168613,
+   "betWhenChecked": 0,
+   "showdown": 0
+  }
+ },
+ "sparseConfidence3Hands": {
+  "vpip": 0.23469955160145034,
+  "pfr": 0.26678825761394676,
+  "foldToBet": 0.29106286346953736,
+  "foldToBet.small": 0.12776530366652866,
+  "foldToBet.medium": 0.12254583661320381,
+  "foldToBet.large": 0.1318680087848968,
+  "raiseVsBet": 0.29106286346953736,
+  "betWhenChecked": 0.13752617546973087,
+  "showdown": 0.2520843450859193
+ }
+}

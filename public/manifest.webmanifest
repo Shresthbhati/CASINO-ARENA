@@ -1,0 +1,19 @@
+{
+  "id": "./",
+  "name": "Casino Arena",
+  "short_name": "Casino Arena",
+  "description": "Virtual-chip blackjack, Texas Hold'em, roulette, baccarat and more against adaptive AI, or with friends in private party rooms. No real money.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#121012",
+  "theme_color": "#121012",
+  "lang": "en",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -1,0 +1,23 @@
+node_modules/
+dist/
+coverage/
+.vite/
+*.local
+.DS_Store
+*.log
+*.txt
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.party-state.json*
+.party-data/
+
+# IDE and agent caches
+.claude/
+.kilo/
+
+# Artifacts & test results
+screenshots/
+test-results*.json
+.artifacts/
+docs/eval-parts/

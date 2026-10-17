@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["src/arena/**/*.ts", "src/game/**/*.ts", "src/__tests__/arena-tests/**/*.ts"]
+}
