@@ -1396,7 +1396,9 @@ export class HoldemTable {
     // by an unchecked "last seat takes everything".
     const scorer = this.isOmaha()
       ? (holding: readonly Card52[]) => {
-          if (holding.length !== 9) return [];
+          if (holding.length !== 9) {
+            throw new Error(`Omaha showdown holding must have 9 cards (4 hole + 5 board), got ${holding.length}`);
+          }
           const hole = holding.slice(0, 4);
           const board = holding.slice(4);
           return evaluateOmaha(hole, board).score;

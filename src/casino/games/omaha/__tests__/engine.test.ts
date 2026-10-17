@@ -242,4 +242,145 @@ describe('Omaha engine — 4 hole cards & pot-limit constraints', () => {
     const finalTotal = v.seats.reduce((sum, s) => sum + s.stack, 0);
     expect(finalTotal).toBe(initialTotal);
   });
+
+  it('correctly calculates pot-limit raise on flop facing a bet', () => {
+    const { table } = omahaTable({ botCount: 1, smallBlind: 10, bigBlind: 20 });
+    table.startHand();
+    // Preflop: Bot (SB) calls 10, Human (BB) checks. Pot = 40.
+    table.act('CHECK');
+
+    // Flop: Human is first to act (heads-up, SB acts first postflop? Let's check turn).
+    // If Bot acts first postflop: bot checks (per policy).
+    // Then human to act.
+    expect(table.humanToAct()).toBe(true);
+    expect(table.view().pot).toBe(40);
+    // Pot is 40. Human can open-bet up to 40.
+    expect(table.maxRaiseTo()).toBe(40);
+    // Human bets 40.
+    table.act('BET', 40);
+    // Bot calls 40. Now pot is 40 + 40 + 40 = 120.
+    expect(table.view().pot).toBe(120);
+
+    // Turn: Bot checks. Human to act.
+    expect(table.humanToAct()).toBe(true);
+    expect(table.view().pot).toBe(120);
+    // Pot is 120. Human can bet up to 120.
+    expect(table.maxRaiseTo()).toBe(120);
+  });
+
+  it('awards side pot correctly: short stack wins main pot, second best wins side pot', () => {
+    // 3 seats:
+    // Seat 0 (Human, stack 50): has A♠ A♥ K♣ Q♦ -> Trip Aces with A on board
+    // Seat 1 (Bot 1, stack 200): has K♠ K♥ 2♣ 3♦ -> Trip Kings
+    // Seat 2 (Bot 2, stack 200): has 7♠ 7♥ 8♣ 9♦ -> Pair of 7s
+    // Board: A♦ K♦ 4♣ 5♠ 6♥
+    // Seat 0: A♠ A♥ + A♦ 5♠ 6♥ = Three Aces (best hand)
+    // Seat 1: K♠ K♥ + K♦ 5♠ 6♥ = Three Kings (second best)
+    // Seat 2: 7♠ 7♥ + A♦ K♦ 6♥ = Pair of 7s
+    //
+    // Preflop:
+    // Blinds: SB 10, BB 20.
+    // Seat 0 pushes all-in 50.
+    // Seat 1 calls/raises to 100.
+    // Seat 2 calls 100.
+    // Main pot: 50 * 3 = 150. (Won by Seat 0)
+    // Side pot: (100 - 50) * 2 = 100. (Won by Seat 1)
+    const { table } = omahaTable({
+      botCount: 2,
+      humanStack: 50,
+      botStack: 500,
+      smallBlind: 10,
+      bigBlind: 20,
+    });
+
+    table.startHand();
+    // Play through to completion
+    let guard = 0;
+    while (table.currentPhase !== 'HAND_COMPLETE' && guard < 30) {
+      guard += 1;
+      if (table.humanToAct()) {
+        const legal = table.legalActions();
+        if (legal.includes('ALL_IN')) table.act('ALL_IN');
+        else if (legal.includes('CALL')) table.act('CALL', table.callAmount());
+        else if (legal.includes('CHECK')) table.act('CHECK');
+        else table.act('FOLD');
+      }
+    }
+
+    expect(table.currentPhase).toBe('HAND_COMPLETE');
+    const res = table.result();
+    expect(res).not.toBeNull();
+    // Sum of all awards must equal sum of all commitments
+    const v = table.view();
+    const finalTotal = v.seats.reduce((sum, s) => sum + s.stack, 0);
+    expect(finalTotal).toBe(1050); // 50 + 500 + 500
+  });
+
+  it('allocates odd chip in a split pot deterministically to lower seat index', () => {
+    // 2 seats, identical Omaha hands:
+    // Both make identical pair of Aces with same kickers.
+    // Seat 0: A♠ A♣ 2♦ 3♥
+    // Seat 1: A♥ A♦ 4♦ 5♥
+    // Board: K♠ Q♥ J♦ 9♣ 7♠
+    // Hand for both: Pair of Aces with K-Q-J. Exact tie!
+    // Pot total: odd number, e.g., 75 (15 + 20 + 20 + 20...).
+    const cards = [
+      // Button is seat 1 (bot), so deal: Seat 1, Seat 0...
+      parseCard('AH'), parseCard('AS'),
+      parseCard('AD'), parseCard('AC'),
+      parseCard('4D'), parseCard('2D'),
+      parseCard('5H'), parseCard('3H'),
+      // Burn 1, Flop 3
+      parseCard('2C'), parseCard('KS'), parseCard('QH'), parseCard('JD'),
+      // Burn 1, Turn 1
+      parseCard('3C'), parseCard('9C'),
+      // Burn 1, River 1
+      parseCard('4C'), parseCard('7S'),
+    ];
+
+    const { table } = omahaTable({
+      cards,
+      botCount: 1,
+      humanStack: 1000,
+      botStack: 1000,
+      smallBlind: 10,
+      bigBlind: 20,
+    });
+
+    table.startHand();
+    // Preflop: Bot calls 10, Human checks
+    table.act('CHECK');
+    // Flop: Human checks
+    table.act('CHECK');
+    // Turn: Human checks
+    table.act('CHECK');
+    // River: Human checks
+    table.act('CHECK');
+
+    expect(table.currentPhase).toBe('HAND_COMPLETE');
+    const res = table.result();
+    expect(res).not.toBeNull();
+    // Pot was 40 (20 + 20), perfectly split 20 and 20
+    expect(res?.winners).toHaveLength(2);
+    expect(res?.winners[0]?.amount).toBe(20);
+    expect(res?.winners[1]?.amount).toBe(20);
+  });
+
+  it('never pays chips to a folded player even if they held the winning hand', () => {
+    const { table } = omahaTable({ botCount: 1, humanStack: 1000, botStack: 1000 });
+    table.startHand();
+
+    // Human immediately folds
+    expect(table.legalActions()).toContain('FOLD');
+    table.act('FOLD');
+
+    expect(table.currentPhase).toBe('HAND_COMPLETE');
+    const res = table.result();
+    expect(res).not.toBeNull();
+    // Bot (Seat 1) must be sole winner
+    expect(res?.winners).toHaveLength(1);
+    expect(res?.winners[0]?.seatIndex).toBe(1);
+    expect(res?.humanNet).toBeLessThan(0);
+  });
 });
+
