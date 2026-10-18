@@ -59,7 +59,7 @@ function setup(config: Parameters<PartyServer['createParty']>[1] = {}, seed = 11
 describe('blackjack in the lobby', () => {
   it('Home offers Blackjack and creates a blackjack party', async () => {
     const create = vi.fn(async () => true);
-    render(<Home savedName="Ada" busy={false} create={create} join={async () => true} />);
+    render(<Home savedName="Ada" busy={false} create={create} join={async () => true} watch={async () => true} />);
     const radio = screen.getAllByRole('radio').find((r) => r.closest('label')?.textContent?.includes('Blackjack')) as HTMLElement;
     expect(radio.closest('label')?.textContent).toMatch(/two teams sharing a bank/i);
     fireEvent.click(radio);

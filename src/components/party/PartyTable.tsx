@@ -254,6 +254,9 @@ export const Chat: React.FC<{ view: PartyView; send: Send }> = ({ view, send }) 
           </button>
         ))}
       </div>
+      {view.you.spectator ? (
+        <p className="text-xs text-muted" data-testid="watcher-chat-note">You&rsquo;re watching: you can react, but only players can chat.</p>
+      ) : (
       <form onSubmit={submit} className="flex gap-2">
         <input
           aria-label="Chat message"
@@ -267,6 +270,7 @@ export const Chat: React.FC<{ view: PartyView; send: Send }> = ({ view, send }) 
           Send
         </button>
       </form>
+      )}
     </section>
   );
 };
@@ -300,7 +304,7 @@ export const MemberList: React.FC<{ view: PartyView; send: Send; lobby?: boolean
           {m.muted ? <span className="text-xs text-warn">Muted</span> : null}
           {blocked ? <span className="text-xs text-muted">Blocked</span> : null}
         </div>
-        {!mine && !m.left ? (
+        {!mine && !m.left && !view.you.spectator ? (
           <div className="flex flex-wrap gap-3 pl-4">
             <button type="button" className={small} onClick={() => void send({ type: 'block', memberId: m.id, blocked: !blocked })}>
               {blocked ? 'Unblock' : 'Block'}
@@ -353,6 +357,23 @@ export const MemberList: React.FC<{ view: PartyView; send: Send; lobby?: boolean
   return (
     <section aria-label="Members">
       <ul>{view.members.map(row)}</ul>
+      {view.watchers.length > 0 ? (
+        <div className="mt-2 text-sm" role="region" aria-label="Watching" data-testid="watchers">
+          <p className="text-muted">Watching ({view.watchers.length})</p>
+          <ul>
+            {view.watchers.map((w) => (
+              <li key={w.id} className="flex items-center gap-3 text-cream/90">
+                <span>{w.name}</span>
+                {iAmLeader ? (
+                  <button type="button" className={small} aria-label={`Remove watcher ${w.name}`} onClick={() => void send({ type: 'kick', memberId: w.id })}>
+                    Remove
+                  </button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {iAmLeader && view.reports && view.reports.some((r) => r.status === 'open') ? (
         <div className="mt-2 border border-warn/40 p-2 text-sm text-cream/90" role="region" aria-label="Open reports">
           <p className="font-medium text-warn">Open reports</p>

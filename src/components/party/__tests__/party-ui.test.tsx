@@ -243,7 +243,7 @@ describe('live table', () => {
 describe('game selection', () => {
   it('offers exactly the games with Party Mode support, and creates the chosen one', async () => {
     const create = vi.fn(async () => true);
-    render(<Home savedName="Ada" busy={false} create={create} join={async () => true} />);
+    render(<Home savedName="Ada" busy={false} create={create} join={async () => true} watch={async () => true} />);
     const radios = screen.getAllByRole('radio');
     expect(radios.map((r) => r.closest('label')?.textContent)).toEqual([
       expect.stringContaining("Texas Hold'em"),

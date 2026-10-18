@@ -507,8 +507,10 @@ describe('private state is isolated', () => {
     const { view, a } = started();
     const v = view(a);
     // A whitelist on purpose: anything added to the private region must be about the viewer alone.
-    // `roulette` (the viewer's own layout) and `myReports` (reports the viewer filed) were added later.
-    expect(Object.keys(v.you).sort()).toEqual(['blackjack', 'blocked', 'holeCards', 'memberId', 'myReports', 'roulette', 'seat', 'team', 'turn']);
+    // `roulette` (the viewer's own layout) and `myReports` (reports the viewer filed) were added later, and
+    // `spectator` (whether the viewer is only watching): a flag about the viewer alone.
+    expect(Object.keys(v.you).sort()).toEqual(['blackjack', 'blocked', 'holeCards', 'memberId', 'myReports', 'roulette', 'seat', 'spectator', 'team', 'turn']);
+    expect(v.you.spectator).toBe(false);
     expect(v.you.roulette).toBeNull();
     expect(v.you.holeCards).toHaveLength(2);
   });

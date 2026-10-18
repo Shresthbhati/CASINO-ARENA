@@ -208,9 +208,17 @@ interface PartyRec {
   waiting: boolean;
   lastActive: number;
   readonly subs: Set<Subscriber>;
+  /**
+   * People watching without playing. Deliberately a separate list from `members`: every rule about
+   * seats, readiness, teams, leadership and expiry loops over `members`, and none of them may ever see a
+   * watcher. Not saved: a restart drops watchers and they simply watch again.
+   */
+  watchers: MemberRec[];
 }
 
 const IDEMPOTENCY_KEPT = 200;
+/** How long a watcher may be offline before they are dropped. */
+const WATCHER_GRACE_MS = 60_000;
 const CHAT_CAPACITY = 5;
 const CHAT_REFILL_MS = 2_000;
 const REACT_CAPACITY = 3;
@@ -357,7 +365,7 @@ export class PartyServer {
     const party: PartyRec = {
       code, createdAt: now, config: config.value, phase: 'LOBBY', paused: false, leaderId: member.id, members: [member],
       version: 1, gameVersion: 0, table: null, roulette: null, blackjack: null, bjRounds: [], handRecords: [], roundRecords: [], sessionPlayers: [], startedAt: null, endedAt: null, seatPlan: [], journal: [], checkpoint: null, tapes: new Map(), seatMembers: [], feed: [], chat: [], history: [], reports: [], reportSeq: 0, standings: null,
-      seq: 0, feedCursor: 0, countedHand: 0, turnKey: '', turnStartedAt: now, handEndedAt: null, waiting: false, lastActive: now, subs: new Set(),
+      seq: 0, feedCursor: 0, countedHand: 0, turnKey: '', turnStartedAt: now, handEndedAt: null, waiting: false, lastActive: now, subs: new Set(), watchers: [],
     };
     this.parties.set(code, party);
     this.system(party, `${member.name} opened the party`);
@@ -380,6 +388,31 @@ export class PartyServer {
     this.system(party, `${member.name} joined`);
     this.changed(party);
     return { ok: true, code: party.code, memberId: member.id, token };
+  }
+
+  /**
+   * Watch a party without playing in it. Allowed in any phase (a started party refuses new players, not
+   * onlookers). A watcher holds no seat, is invisible to every rule about players, sees only what a player
+   * sees of the table (never anyone's cards) and can react and leave, nothing else: no chat, so there is
+   * nothing to moderate. The leader can remove one.
+   */
+  watch(code: string, name: string): Result<{ code: string; memberId: string; token: string }> {
+    const party = this.parties.get(normaliseCode(code));
+    if (!party) return fail('NOT_FOUND', 'That invite code is not valid or has expired');
+    const clean = cleanName(name);
+    if (!clean.ok) return clean;
+    if (party.watchers.length >= LIMITS.maxWatchers) return fail('FULL', 'This party already has as many watchers as it allows');
+    const taken = [...party.members.filter((m) => !m.left), ...party.watchers].some((m) => m.name.toLowerCase() === clean.value.toLowerCase());
+    if (taken) return fail('DUPLICATE', 'That name is already in the party');
+    const now = this.now();
+    const token = this.newSecret();
+    const watcher = this.makeMember(clean.value, token, now);
+    // Counts as "offline since now", so a watcher who never connects is dropped like one who disconnects.
+    watcher.disconnectedAt = now;
+    party.watchers.push(watcher);
+    this.system(party, `${watcher.name} is watching`);
+    this.changed(party);
+    return { ok: true, code: party.code, memberId: watcher.id, token };
   }
 
   /**
@@ -460,6 +493,10 @@ export class PartyServer {
   }
 
   private handle(party: PartyRec, member: MemberRec, cmd: Command): Result<object> {
+    // A watcher may react and leave. Nothing that moves a game, changes a setting or says something.
+    if (party.watchers.includes(member) && cmd.type !== 'react' && cmd.type !== 'leave') {
+      return fail('FORBIDDEN', 'Watchers can react and leave, nothing else');
+    }
     const isLeader = party.leaderId === member.id;
     const leaderOnly = (): Result<object> | null => (isLeader ? null : fail('FORBIDDEN', 'Only the party leader can do that'));
     const phaseIs = (...phases: PartyPhase[]): Result<object> | null =>
@@ -513,6 +550,11 @@ export class PartyServer {
       case 'kick': {
         const bad = leaderOnly();
         if (bad) return bad;
+        const watcher = party.watchers.find((w) => w.id === cmd.memberId);
+        if (watcher) {
+          this.removeWatcher(party, watcher, `${watcher.name} was removed by the leader`);
+          return { ok: true };
+        }
         const target = this.activeMember(party, cmd.memberId);
         if (!target) return fail('NOT_FOUND', 'No such member');
         if (target.id === member.id) return fail('INVALID', 'Use leave to leave');
@@ -1171,6 +1213,11 @@ export class PartyServer {
         continue;
       }
 
+      // A watcher who has been offline for a minute is dropped (one who never connected counts from joining).
+      for (const w of [...party.watchers]) {
+        if (!w.connected && w.disconnectedAt !== null && now - w.disconnectedAt > WATCHER_GRACE_MS) this.removeWatcher(party, w, `${w.name} stopped watching`);
+      }
+
       const leader = party.members.find((m) => m.id === party.leaderId);
       if (leader && !leader.connected && leader.disconnectedAt !== null && now - leader.disconnectedAt > this.leaderGraceMs) {
         const successor = party.members.find((m) => !m.left && m.connected && m.id !== leader.id);
@@ -1332,7 +1379,7 @@ export class PartyServer {
 
   private emit(party: PartyRec): void {
     for (const sub of [...party.subs]) {
-      const member = party.members.find((m) => m.id === sub.memberId);
+      const member = party.members.find((m) => m.id === sub.memberId) ?? party.watchers.find((m) => m.id === sub.memberId);
       if (!member) continue;
       try {
         sub.fn(this.buildView(party, member));
@@ -1448,7 +1495,7 @@ export class PartyServer {
   private authenticate(code: string, memberId: string, token: string): Result<{ party: PartyRec; member: MemberRec }> {
     const party = this.parties.get(normaliseCode(code));
     if (!party) return fail('NOT_FOUND', 'That party is not valid or has expired');
-    const member = party.members.find((m) => m.id === memberId);
+    const member = party.members.find((m) => m.id === memberId) ?? party.watchers.find((m) => m.id === memberId);
     if (!member || typeof token !== 'string' || !sameHash(member.tokenHash, hashToken(token))) return fail('FORBIDDEN', 'You are not a member of this party');
     if (member.left) return fail('FORBIDDEN', 'You have left this party');
     return { ok: true, party, member };
@@ -1465,7 +1512,19 @@ export class PartyServer {
   }
 
   /** Remove (lobby) or vacate (in play) a member, and pass on the leader role if needed. */
+  private removeWatcher(party: PartyRec, watcher: MemberRec, why: string): void {
+    const at = party.watchers.indexOf(watcher);
+    if (at >= 0) party.watchers.splice(at, 1);
+    for (const sub of [...party.subs]) if (sub.memberId === watcher.id) party.subs.delete(sub);
+    this.system(party, why);
+    this.changed(party);
+  }
+
   private removeMember(party: PartyRec, member: MemberRec, why: string): void {
+    if (party.watchers.includes(member)) {
+      this.removeWatcher(party, member, why);
+      return;
+    }
     const wasLeader = party.leaderId === member.id;
     if (party.phase === 'LOBBY') {
       party.members.splice(party.members.indexOf(member), 1);
@@ -1532,6 +1591,7 @@ export class PartyServer {
       config: party.config,
       leaderId: party.leaderId,
       members,
+      watchers: party.watchers.map((w) => ({ id: w.id, name: w.name })),
       table: tv ? this.publicTable(party, tv) : null,
       roulette: party.roulette ? this.publicRoulette(party) : null,
       blackjack: party.blackjack ? this.publicBlackjack(party) : null,
@@ -1545,6 +1605,7 @@ export class PartyServer {
       // The leader judges reports about other members, never about themselves.
       reports: party.leaderId === viewer.id ? party.reports.filter((r) => r.targetId !== viewer.id) : null,
       you: {
+        spectator: party.watchers.includes(viewer),
         memberId: viewer.id,
         seat: seat >= 0 ? seat : null,
         team: viewer.team,
@@ -1840,7 +1901,7 @@ export class PartyServer {
       reportSeq: int(d.reportSeq ?? 0, 'reportSeq'),
       standings: d.standings === null ? null : arr(d.standings, 'standings').map(standing),
       seq: int(d.seq, 'seq'), feedCursor: int(d.feedCursor, 'feedCursor'), countedHand: int(d.countedHand, 'countedHand'), turnKey: '',
-      turnStartedAt: now, handEndedAt: d.betweenHands === true ? now : null, waiting: false, lastActive: now, subs: new Set(),
+      turnStartedAt: now, handEndedAt: d.betweenHands === true ? now : null, waiting: false, lastActive: now, subs: new Set(), watchers: [],
     };
     party.feed.push({ seq: ++party.seq, at: now, text: 'The server restarted and restored this party' });
 

@@ -102,6 +102,7 @@ export function usePartySession() {
 
   const create = useCallback((name: string, config: Partial<PartyConfig> = {}) => enter(client.create(name, config), name), [enter]);
   const join = useCallback((code: string, name: string) => enter(client.join(code, name), name), [enter]);
+  const watch = useCallback((code: string, name: string) => enter(client.watch(code, name), name), [enter]);
 
   const send = useCallback(async (cmd: CommandInput): Promise<boolean> => {
     const r = await client.send(cmd);
@@ -134,5 +135,5 @@ export function usePartySession() {
   // A saved seat exists but no snapshot has arrived yet: the server is being reached, not absent.
   const resuming = view === null && (client.credentials !== null || read('session', KEY) !== null);
 
-  return { view, online, error, busy, resuming, forget, fetchHistory, create, join, send, leave, clearError: () => setError(null), savedName: read('local', NAME_KEY) ?? '' };
+  return { view, online, error, busy, resuming, forget, fetchHistory, create, join, watch, send, leave, clearError: () => setError(null), savedName: read('local', NAME_KEY) ?? '' };
 }

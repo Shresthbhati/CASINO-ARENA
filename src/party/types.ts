@@ -62,6 +62,8 @@ export const DEFAULT_CONFIG: PartyConfig = {
 
 export const LIMITS = {
   maxSeats: 6,
+  /** People who may watch one party at once, on top of its players. */
+  maxWatchers: 20,
   minPlayers: 2,
   minChips: 200,
   maxChips: 1_000_000,
@@ -367,6 +369,8 @@ export interface YourTurn {
 }
 
 export interface YouView {
+  /** True for someone watching: no seat, no cards, no commands beyond reacting and leaving. */
+  readonly spectator: boolean;
   readonly memberId: string;
   readonly seat: number | null;
   readonly team: TeamId | null;
@@ -395,6 +399,8 @@ export interface PartyView {
   readonly config: PartyConfig;
   readonly leaderId: string;
   readonly members: readonly PublicMember[];
+  /** People watching without playing. They hold no seat and see exactly what any player sees of the table. */
+  readonly watchers: readonly { readonly id: string; readonly name: string }[];
   readonly table: PublicTable | null;
   /** The shared roulette table, for a roulette party. */
   readonly roulette: PublicRoulette | null;

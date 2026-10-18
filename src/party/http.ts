@@ -249,6 +249,13 @@ export function createPartyHttpServer(party: PartyServer, options: HttpOptions =
           }
           verdict(res, party.join(str(b.code), str(b.name)));
           return;
+        case '/api/party/watch':
+          if (!allowJoin(clientOf(req), Date.now())) {
+            json(res, 429, { ok: false, code: 'RATE_LIMITED', message: 'Too many attempts; try again in a minute' });
+            return;
+          }
+          verdict(res, party.watch(str(b.code), str(b.name)));
+          return;
         case '/api/party/command':
           verdict(res, party.command(str(b.code), str(b.memberId), String(req.headers['x-party-token'] ?? ''), (b.command ?? {}) as Command));
           return;
