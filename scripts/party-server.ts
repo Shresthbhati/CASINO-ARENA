@@ -4,7 +4,8 @@
  * Live sessions survive a restart. Every state change is written (atomically, checksummed) BEFORE
  * players are told about it, and on start the saved parties are restored by replaying their
  * journals through the engine. A corrupt snapshot is set aside, never half-loaded.
- * The Vite dev server proxies /api/party to this process.
+ * The Vite dev server proxies /api/party to this process. For hosting, set STATIC_DIR=dist and this one
+ * process serves the built app and the API together (see docs/HOSTING.md).
  */
 import { resolve } from 'node:path';
 import { createPartyHttpServer } from '../src/party/http';
@@ -55,9 +56,11 @@ for (const sig of ['SIGINT', 'SIGTERM'] as const) {
   });
 }
 
-const http = createPartyHttpServer(party, { onError: (e) => console.error(`request failed: ${(e as Error).message}`) });
+// STATIC_DIR (for example `dist`) makes this one process serve the built app as well as the API.
+const staticDir = process.env.STATIC_DIR;
+const http = createPartyHttpServer(party, { ...(staticDir ? { staticDir } : {}), onError: (e) => console.error(`request failed: ${(e as Error).message}`) });
 const bound = await http.listen(port, process.env.HOST ?? '127.0.0.1');
-console.log(`Party server listening on http://127.0.0.1:${bound}`);
+console.log(`Party server listening on http://${process.env.HOST ?? '127.0.0.1'}:${bound}${staticDir ? ` (also serving ${staticDir})` : ''}`);
 
 // Keep the process alive until signaled. Vite-node's runner may not hold the event
 // loop by itself once the module finishes executing, so pin it explicitly.

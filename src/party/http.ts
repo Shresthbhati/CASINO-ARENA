@@ -18,6 +18,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net';
 import type { PartyServer } from './server';
 import { renderHistoryText } from './history';
+import { createStaticServer } from './static';
 import type { Command, ErrorCode, PartyConfig, PartyView } from './types';
 
 export interface HttpOptions {
@@ -33,6 +34,8 @@ export interface HttpOptions {
   readonly joinPerMinute?: number;
   /** Live event streams one member may hold; opening another closes the oldest. */
   readonly maxStreamsPerMember?: number;
+  /** A built app folder (`dist`) to serve alongside the API, so one process is the whole product. Omit for API only. */
+  readonly staticDir?: string;
   /** Told about any unexpected failure while handling a request. Gets the error only; nothing from the request. */
   readonly onError?: (error: unknown) => void;
 }
@@ -72,6 +75,7 @@ export function createPartyHttpServer(party: PartyServer, options: HttpOptions =
   const allowJoin = bucketLimiter(options.joinPerMinute ?? 30);
   const maxStreams = options.maxStreamsPerMember ?? 5;
   const streams = new Map<string, Set<ServerResponse>>();
+  const staticServer = options.staticDir ? createStaticServer(options.staticDir) : null;
   const clientOf = (req: IncomingMessage): string => req.socket.remoteAddress ?? 'unknown';
 
   const cors = (): Record<string, string> =>
@@ -238,6 +242,8 @@ export function createPartyHttpServer(party: PartyServer, options: HttpOptions =
       }
     }
 
+    // Anything under /api is ours and never falls through to the app shell.
+    if (staticServer && !url.pathname.startsWith('/api/') && staticServer.handle(req, res, url.pathname)) return;
     json(res, 404, { ok: false, code: 'NOT_FOUND', message: 'no such route' });
   };
 
