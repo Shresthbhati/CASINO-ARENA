@@ -226,6 +226,8 @@ export const BlackjackTable: React.FC<{ view: PartyView; online: boolean; send: 
   return (
     <div className="grid w-full gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="flex min-w-0 flex-col gap-3">
+        {/* A finished session leads with its result and the way to play again, not a screen below the felt. */}
+        {view.phase === 'ENDED' ? <Standings view={view} send={send} /> : null}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
           <span className="inline-flex items-center gap-1.5 border border-gold-dim/50 px-2 py-0.5 text-gold-bright">
             <span aria-hidden="true">🔒</span> Private room <span className="font-mono">{view.code}</span>
@@ -304,8 +306,6 @@ export const BlackjackTable: React.FC<{ view: PartyView; online: boolean; send: 
             </ul>
           </section>
         ) : null}
-
-        {ended ? <Standings view={view} send={send} /> : null}
 
         <div className="flex flex-wrap gap-2">
           {iAmLeader && view.phase === 'PLAYING' ? (
