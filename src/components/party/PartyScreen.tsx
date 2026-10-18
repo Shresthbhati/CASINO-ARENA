@@ -398,6 +398,9 @@ export const PartyScreen: React.FC = () => {
         <p className="mt-1 text-sm text-muted">
           Play with friends in a private room: Texas Hold&apos;em, roulette or blackjack. Party chips are virtual, separate from your wallet, and gone when the party ends.
         </p>
+        <p className="mt-1 text-xs text-muted" data-testid="party-xp-note">
+          Finished party rounds earn XP and count toward today&rsquo;s quests, up to 40 rounds a day. XP is a score, never chips.
+        </p>
         {view ? (
           <div className="mt-3">
             <NotifyToggle />

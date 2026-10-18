@@ -166,6 +166,8 @@ export interface MasteryState {
   /** Rooms visited today, for the "different rooms" quest. */
   readonly roomsToday: readonly string[];
   readonly dayStreak: { readonly current: number; readonly best: number; readonly lastDay: string | null };
+  /** Party rounds that earned XP today, against `PARTY_DAILY_ROUNDS`. */
+  readonly partyRoundsToday: number;
 }
 
 export function emptyMastery(day: string): MasteryState {
@@ -177,10 +179,20 @@ export function emptyMastery(day: string): MasteryState {
     questsDone: [],
     roomsToday: [],
     dayStreak: { current: 0, best: 0, lastDay: null },
+    partyRoundsToday: 0,
   };
 }
 
+/**
+ * Party rounds that can earn XP in a day. Party rounds are quick (a roulette spin takes seconds), so
+ * without a cap XP would reward sitting at a wheel rather than playing. Past the cap the round is still
+ * played, it just stops earning.
+ */
+export const PARTY_DAILY_ROUNDS = 40;
+
 export interface RoundEvent {
+  /** `party` for a round played in a multiplayer party. Omitted means a solo casino round. */
+  readonly source?: 'party';
   readonly gameId: GameId;
   /** False for a round that only rode (no result yet): it earns nothing. */
   readonly settled: boolean;
@@ -212,7 +224,7 @@ export function daysBetween(a: string, b: string): number {
 /** Today's quest progress starts fresh on a new day; everything lifetime is kept. */
 export function rollDay(state: MasteryState, day: string): MasteryState {
   if (state.day === day) return state;
-  return { ...state, day, questProgress: {}, questsDone: [], roomsToday: [] };
+  return { ...state, day, questProgress: {}, questsDone: [], roomsToday: [], partyRoundsToday: 0 };
 }
 
 /**
@@ -243,6 +255,55 @@ export function questView(state: MasteryState, quests: readonly Quest[]): QuestV
   }));
 }
 
+/**
+ * A round played in a multiplayer party. It earns the same flat XP as a solo round (plus the win
+ * bonus), advances the "play rounds" and "win rounds" quests, and counts toward the day streak through
+ * them. It does NOT count toward room tiers, first-visit bonuses, "different rooms" quests or Climb:
+ * those describe the player's experience against the casino's bots, which a party round is not.
+ * Never stake-scaled, never chips, and capped per day.
+ */
+function applyPartyRound(
+  state0: MasteryState,
+  ev: RoundEvent,
+  day: string,
+  playable: readonly GameId[],
+  roomName?: (id: GameId) => string,
+): MasteryResult {
+  if (state0.partyRoundsToday >= PARTY_DAILY_ROUNDS) return { state: state0, xpGained: 0, notes: [] };
+
+  const notes: MasteryNote[] = [];
+  let xpGained = XP_PER_ROUND + (ev.won ? XP_WIN_BONUS : 0);
+
+  const progress: Record<string, number> = { ...state0.questProgress };
+  const done = [...state0.questsDone];
+  let streak = state0.dayStreak;
+  for (const q of questsFor(day, playable, roomName)) {
+    if (done.includes(q.id)) continue;
+    if (q.kind !== 'rounds' && q.kind !== 'wins') continue;
+    const next = (progress[q.id] ?? 0) + (q.kind === 'rounds' ? 1 : ev.won ? 1 : 0);
+    progress[q.id] = Math.min(q.target, next);
+    if (next >= q.target) {
+      done.push(q.id);
+      xpGained += q.xp;
+      notes.push({ kind: 'quest', title: q.title, xp: q.xp });
+      const advanced = advanceStreak(streak, day);
+      if (advanced !== streak) notes.push({ kind: 'streak', days: advanced.current });
+      streak = advanced;
+    }
+  }
+
+  const xp = state0.xp + xpGained;
+  const before = levelInfo(state0.xp);
+  const after = levelInfo(xp);
+  if (after.level > before.level) notes.unshift({ kind: 'level-up', level: after.level, title: after.title });
+
+  return {
+    state: { ...state0, xp, questProgress: progress, questsDone: done, dayStreak: streak, partyRoundsToday: state0.partyRoundsToday + 1 },
+    xpGained,
+    notes,
+  };
+}
+
 /** Fold one round into the mastery state. Pure: same inputs, same result. */
 export function applyRound(
   prev: MasteryState,
@@ -253,6 +314,7 @@ export function applyRound(
 ): MasteryResult {
   const state0 = rollDay(prev, day);
   if (!ev.settled) return { state: state0, xpGained: 0, notes: [] };
+  if (ev.source === 'party') return applyPartyRound(state0, ev, day, playable, roomName);
 
   const notes: MasteryNote[] = [];
   let xpGained = XP_PER_ROUND;
@@ -312,6 +374,7 @@ export function applyRound(
       questsDone: done,
       roomsToday,
       dayStreak: streak,
+      partyRoundsToday: state0.partyRoundsToday,
     },
     xpGained,
     notes,
@@ -351,5 +414,6 @@ export function sanitizeMastery(raw: unknown, today: string): MasteryState {
       best: Math.max(current, num(s.best, 100_000)),
       lastDay: isDay(s.lastDay) ? s.lastDay : null,
     },
+    partyRoundsToday: Math.min(PARTY_DAILY_ROUNDS, num(r.partyRoundsToday, 1_000)),
   };
 }

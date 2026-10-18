@@ -20,6 +20,7 @@ import { CasinoNav } from '@/components/casino/CasinoNav';
 import { MasteryToasts } from '@/components/casino/MasteryToasts';
 import { usePartySession } from '@/components/party/usePartySession';
 import { useTurnAlert } from '@/components/party/useTurnAlert';
+import { usePartyXp } from '@/components/party/usePartyXp';
 import { gameSpec } from '@/casino/registry';
 import { DESKTOP_QUERY, useMediaQuery } from '@/lib/useMediaQuery';
 import { useImmersive } from '@/lib/immersive';
@@ -41,10 +42,11 @@ const TITLES: Partial<Record<CasinoScreen, string>> = {
   party: 'Party',
 };
 
-/** Tells a player who is on another tab that the Party table is waiting on them. */
+/** Party things that must keep working from any screen: the turn alert, and XP for finished rounds. */
 function PartyTurnAlerts() {
   const { view } = usePartySession();
   useTurnAlert(view);
+  usePartyXp(view);
   return null;
 }
 

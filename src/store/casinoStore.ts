@@ -278,6 +278,11 @@ export interface CasinoState {
   commit: () => void;
   /** Fold one settled round's events into the visible state and the trophies. */
   absorbRound: (round: GameRound) => void;
+  /**
+   * Credit XP (never chips) for a finished multiplayer round. It touches nothing but the mastery state:
+   * not the wallet, the ledger, the trophies, room tiers or Climb.
+   */
+  absorbPartyRound: (round: { readonly gameId: GameId; readonly won: boolean }) => void;
 }
 
 // ── persistence ────────────────────────────────────────────────────────────
@@ -717,6 +722,19 @@ export const useCasinoStore = create<CasinoState>((set, get) => ({
     const round = session.act(action, amount);
     if (round) get().absorbRound(round);
     return round;
+  },
+
+  absorbPartyRound: (round) => {
+    const mastered = applyMastery(
+      get().mastery,
+      { source: 'party', gameId: round.gameId, settled: true, won: round.won, winRun: 0 },
+      localDayKey(),
+      playableGames().map((g) => g.id),
+      (id) => gameSpec(id)?.name ?? id,
+    );
+    if (mastered.xpGained === 0 && mastered.state === get().mastery) return;
+    writeJson(MASTERY_KEY, mastered.state);
+    set({ mastery: mastered.state, masteryNotes: [...get().masteryNotes, ...mastered.notes].slice(-6) });
   },
 
   /** Fold a round's events into the visible state and the trophy case. */
