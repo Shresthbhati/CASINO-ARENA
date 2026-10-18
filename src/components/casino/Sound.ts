@@ -204,6 +204,27 @@ class SoundEngine {
     osc.stop(ctx.currentTime + 0.25);
   }
 
+  /** Party: it is your turn. Two soft pings, quiet enough to leave on. */
+  turn(): void {
+    if (this.muted) return;
+    const ctx = this.initCtx();
+    if (!ctx) return;
+
+    [659.25, 880].forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const at = ctx.currentTime + idx * 0.14;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, at);
+      gain.gain.setValueAtTime(0.07, at);
+      gain.gain.exponentialRampToValueAtTime(0.001, at + 0.3);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(at);
+      osc.stop(at + 0.3);
+    });
+  }
+
   /** Level-up / quest complete: a quick rising arpeggio */
   levelUp(): void {
     if (this.muted) return;

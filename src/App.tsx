@@ -18,6 +18,8 @@ import { ProfileView } from '@/components/casino/ProfileView';
 import { PracticeView } from '@/components/casino/PracticeView';
 import { CasinoNav } from '@/components/casino/CasinoNav';
 import { MasteryToasts } from '@/components/casino/MasteryToasts';
+import { usePartySession } from '@/components/party/usePartySession';
+import { useTurnAlert } from '@/components/party/useTurnAlert';
 import { gameSpec } from '@/casino/registry';
 import { DESKTOP_QUERY, useMediaQuery } from '@/lib/useMediaQuery';
 import { useImmersive } from '@/lib/immersive';
@@ -38,6 +40,13 @@ const TITLES: Partial<Record<CasinoScreen, string>> = {
   practice: 'Practice',
   party: 'Party',
 };
+
+/** Tells a player who is on another tab that the Party table is waiting on them. */
+function PartyTurnAlerts() {
+  const { view } = usePartySession();
+  useTurnAlert(view);
+  return null;
+}
 
 export default function App() {
   const screen = useCasinoStore((s) => s.screen);
@@ -66,6 +75,7 @@ export default function App() {
       </a>
       <CasinoNav />
       <MasteryToasts />
+      <PartyTurnAlerts />
 
       {!online || updateReady ? (
         <div role="status" className="flex w-full flex-wrap items-center justify-center gap-x-4 gap-y-2 border-b border-gold-dim/50 bg-felt-deep px-4 py-2 text-center text-sm text-cream">
