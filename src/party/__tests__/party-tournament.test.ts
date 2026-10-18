@@ -147,7 +147,12 @@ describe('the last player standing', () => {
     const groups: string[][] = [];
     for (let hand = 0; hand < 60 && r.view(a).phase === 'PLAYING'; hand += 1) {
       r.playHand('shove');
-      const fresh = r.view(a).table!.seats.filter((s) => s.stack === 0 && !wentOut.includes(s.name)).map((s) => s.name);
+      // A seat is out when it has no chips and none in the pot. A seat that posted its last chips as a blind
+      // also shows a zero stack, but it is all-in and alive, so it only counts once the session has ended.
+      const now = r.view(a);
+      const fresh = now.table!.seats
+        .filter((s) => s.stack === 0 && (now.phase === 'ENDED' || (!s.allIn && s.committedThisStreet === 0)) && !wentOut.includes(s.name))
+        .map((s) => s.name);
       wentOut.push(...fresh);
       if (fresh.length) groups.push(fresh);
     }
