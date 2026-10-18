@@ -28,6 +28,7 @@
     "sim:learner:tune": "vite-node scripts/learner-tune.ts",
     "sim:learner:eval": "vite-node scripts/holdem-learner-eval.ts",
     "sim:learner:cost": "vite-node scripts/learner-cost.ts",
+    "sim:party:reads": "vite-node scripts/party-reads-eval.ts",
     "sim:house": "vite-node scripts/house-edge.ts",
     "lab": "vite-node scripts/holdem-lab.ts",
     "party:server": "vite-node scripts/party-server.ts"

@@ -313,3 +313,85 @@ describe('nothing is granted before it is earned', () => {
     expect(progressOf('rounds-10')).toBe(1);
   });
 });
+describe('mastery is fed by real settled rounds and pays no chips', () => {
+  it('starts empty, earns XP per settled round and never touches the wallet', () => {
+    const before = useCasinoStore.getState();
+    expect(before.mastery.xp).toBe(0);
+    const balance = before.wallet.balance();
+
+    useCasinoStore.getState().absorbRound(round(500, 1));
+    useCasinoStore.getState().absorbRound(round(-1_000, 2));
+
+    const after = useCasinoStore.getState();
+    expect(after.mastery.xp).toBeGreaterThan(0);
+    expect(after.mastery.roomRounds.roulette).toBe(2);
+    expect(after.masteryNotes.some((n) => n.kind === 'discovery')).toBe(true);
+    expect(after.wallet.balance()).toBe(balance);
+    expect(after.wallet.verify()).toEqual([]);
+  });
+
+  it('is cleared by a reset, so a new casino inherits no level', () => {
+    useCasinoStore.getState().absorbRound(round(500, 1));
+    expect(useCasinoStore.getState().mastery.xp).toBeGreaterThan(0);
+    useCasinoStore.getState().resetEverything();
+    expect(useCasinoStore.getState().mastery.xp).toBe(0);
+    expect(useCasinoStore.getState().masteryNotes).toEqual([]);
+  });
+});
+
+describe('Climb difficulty resolves from experience in the room', () => {
+  const bump = (n: number) => {
+    const m = useCasinoStore.getState().mastery;
+    useCasinoStore.setState({ mastery: { ...m, roomRounds: { ...m.roomRounds, blackjack: n } } });
+  };
+
+  it('is a real, persisted choice', () => {
+    expect(useCasinoStore.getState().setDifficulty('climb').ok).toBe(true);
+    expect(useCasinoStore.getState().difficulty).toBe('climb');
+    expect(useCasinoStore.getState().setDifficulty('nonsense' as never).ok).toBe(false);
+  });
+
+  it('builds a gentle table for a newcomer and a tougher one for a regular, from rounds alone', () => {
+    useCasinoStore.getState().setDifficulty('climb');
+    useCasinoStore.getState().openGame('blackjack');
+    bump(0);
+    expect(useCasinoStore.getState().confirmBuyIn().ok).toBe(true);
+    const newcomer = useCasinoStore.getState().tableDifficulty;
+    useCasinoStore.getState().endSession();
+    useCasinoStore.getState().leaveSummary();
+
+    useCasinoStore.getState().openGame('blackjack');
+    bump(500);
+    expect(useCasinoStore.getState().confirmBuyIn().ok).toBe(true);
+    const regular = useCasinoStore.getState().tableDifficulty;
+    expect(newcomer).toBe(55);
+    expect(regular).toBe(95);
+    expect(useCasinoStore.getState().wallet.verify()).toEqual([]);
+  });
+
+  it('is not reset by sitting down again, and fixed levels ignore experience', () => {
+    useCasinoStore.getState().setDifficulty(80);
+    useCasinoStore.getState().openGame('blackjack');
+    bump(0);
+    useCasinoStore.getState().confirmBuyIn();
+    expect(useCasinoStore.getState().tableDifficulty).toBe(80);
+  });
+});
+
+describe('the disclosed 6:5 table rule', () => {
+  it('defaults to standard 3:2, is a validated persisted choice, and reaches the engine', () => {
+    expect(useCasinoStore.getState().naturalPays).toBe('THREE_TO_TWO');
+    expect(useCasinoStore.getState().setNaturalPays('nonsense' as never).ok).toBe(false);
+    expect(useCasinoStore.getState().setNaturalPays('SIX_TO_FIVE').ok).toBe(true);
+    expect(useCasinoStore.getState().naturalPays).toBe('SIX_TO_FIVE');
+
+    useCasinoStore.getState().openGame('blackjack');
+    expect(useCasinoStore.getState().confirmBuyIn().ok).toBe(true);
+    const view = useCasinoStore.getState().session!.view() as { naturalPays?: string };
+    expect(view.naturalPays).toBe('SIX_TO_FIVE');
+    // Changing the rules is refused while a table is open.
+    expect(useCasinoStore.getState().setNaturalPays('THREE_TO_TWO').ok).toBe(false);
+    useCasinoStore.getState().setNaturalPays('SIX_TO_FIVE');
+    useCasinoStore.setState({ naturalPays: 'THREE_TO_TWO' });
+  });
+});

@@ -9,9 +9,12 @@
 import React, { useState } from 'react';
 import { GAMES, gameSpec, isPlayable, maxOpponentsFor, type GameSpec } from '@/casino/registry';
 import { DENOMINATIONS } from '@/arena/core/chips';
-import { useCasinoStore } from '@/store/casinoStore';
+import { useCasinoStore, CLIMB, DIFFICULTIES, type Difficulty, type DifficultySetting } from '@/store/casinoStore';
+import { CLIMB_START, ELITE_CEILING, climbDifficulty } from '@/arena/ai/difficulty';
 import type { GameId } from '@/types/arena';
 import { sound } from './Sound';
+import { MasteryPanel } from './MasteryPanel';
+import { roomTier } from '@/casino/mastery';
 
 
 /**
@@ -107,6 +110,7 @@ export const CasinoFloor: React.FC = () => {
       <p role="status" aria-live="polite" className={`mt-3 text-sm text-muted ${announcement === 'Choose a room to begin.' ? 'sr-only' : ''}`}>
         {announcement}
       </p>
+      <MasteryPanel />
       </>)}
 
       {screen === 'buy-in' ? (
@@ -150,6 +154,7 @@ export const CasinoFloor: React.FC = () => {
 
 const RoomPlaque: React.FC<{ room: GameSpec; onOpen: (id: GameId) => void }> = ({ room, onOpen }) => {
   const playable = isPlayable(room.id);
+  const tier = roomTier(useCasinoStore((s) => s.mastery.roomRounds[room.id] ?? 0));
   const comingSoon = room.status === 'COMING_SOON';
   return (
     <li className={`flex gap-4 bg-panel p-4 sm:p-5 ${comingSoon ? 'opacity-70' : ''}`}>
@@ -163,7 +168,11 @@ const RoomPlaque: React.FC<{ room: GameSpec; onOpen: (id: GameId) => void }> = (
         <h3 className="font-display text-xl font-semibold text-cream">
           {room.name}
           {room.status === 'BETA' && <span className="ml-2 align-middle text-xs font-normal text-gold">Beta</span>}
+          {tier.name ? <span className="ml-2 align-middle text-xs font-normal text-gold" data-testid="room-tier">{tier.name}</span> : null}
         </h3>
+        {playable && tier.toNext !== null ? (
+          <p className="text-xs text-muted tnum">{tier.toNext} {tier.toNext === 1 ? 'round' : 'rounds'} to {tier.nextName}</p>
+        ) : null}
         <p className="mt-1 text-sm leading-snug text-muted">{BLURB[room.id] ?? room.notes}</p>
         <p className="mt-2 text-xs text-muted tnum">
           Bets {room.minBet.toLocaleString()} to {room.maxBet.toLocaleString()} · buy in from {room.minBuyIn.toLocaleString()}
@@ -199,6 +208,99 @@ const RoomPlaque: React.FC<{ room: GameSpec; onOpen: (id: GameId) => void }> = (
  * economy stays legible: you can see the table limits and know your bankroll.
  * Every figure traces to the authoritative wallet.
  */
+/** Rooms whose AI opponents read the player's difficulty setting. */
+const DIFFICULTY_ROOMS: readonly GameId[] = ['blackjack', 'texas-holdem', 'omaha'];
+
+const DIFFICULTY_LABEL: Record<Difficulty, string> = { 70: 'Casual', 80: 'Standard', 90: 'Hard', 95: 'Elite' };
+const DIFFICULTY_NOTE: Record<Difficulty, string> = {
+  70: 'Bots make the occasional costly mistake.',
+  80: 'Sharper bots that read your habits faster.',
+  90: 'Near-optimal bots that exploit your tendencies quickly.',
+  95: 'The toughest play: fewest mistakes, fastest adaptation.',
+};
+
+/** The AI-strength picker. It changes how well the bots play, never the cards or payouts. */
+const DifficultyPicker: React.FC = () => {
+  const difficulty = useCasinoStore((s) => s.difficulty);
+  const setDifficulty = useCasinoStore((s) => s.setDifficulty);
+  const activeGame = useCasinoStore((s) => s.activeGame);
+  const roundsHere = useCasinoStore((s) => s.mastery.roomRounds[activeGame] ?? 0);
+  const climbLevel = climbDifficulty(roundsHere);
+  const choose = (value: DifficultySetting | null) => {
+    sound.chip();
+    setDifficulty(value);
+  };
+  const cls = (on: boolean) =>
+    `py-2 rounded-sm border font-mono text-xs font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold ${
+      on ? 'border-gold-dim bg-gold-dim/20 text-gold-bright shadow-sm' : 'border-white/10 bg-[#1a171a] text-cream/70 hover:bg-white/[0.04]'
+    }`;
+  const note =
+    difficulty === null
+      ? 'Starts easy and gets tougher as you play better. It follows your skill, never your wins or losses.'
+      : difficulty === CLIMB
+        ? `Bots get tougher the more you play this room: level ${CLIMB_START} for newcomers up to ${ELITE_CEILING} for regulars. You have ${roundsHere.toLocaleString()} rounds here, so they will play at level ${climbLevel} of ${ELITE_CEILING}. It never looks at your wins or losses and never resets when you leave.`
+        : DIFFICULTY_NOTE[difficulty];
+  return (
+    <fieldset className="mt-5 border-t border-white/[0.06] pt-4" data-testid="difficulty-picker">
+      <legend className="font-mono text-xs text-cream/70">AI difficulty</legend>
+      <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-6">
+        <button type="button" aria-pressed={difficulty === null} onClick={() => choose(null)} className={cls(difficulty === null)}>
+          Adaptive
+        </button>
+        <button type="button" aria-pressed={difficulty === CLIMB} onClick={() => choose(CLIMB)} className={cls(difficulty === CLIMB)}>
+          Climb
+        </button>
+        {DIFFICULTIES.map((d) => (
+          <button key={d} type="button" aria-pressed={difficulty === d} onClick={() => choose(d)} className={cls(difficulty === d)}>
+            {DIFFICULTY_LABEL[d]}
+          </button>
+        ))}
+      </div>
+      <p className="mt-2 font-mono text-xs text-cream/70" data-testid="difficulty-note">{note}</p>
+      <p className="mt-1 font-mono text-xs text-muted">Difficulty changes how well the AI plays. It never changes the cards, dice or payouts.</p>
+    </fieldset>
+  );
+};
+
+/** Blackjack table rules. 6:5 is a worse deal for the player and is labelled as exactly that. */
+const RulesPicker: React.FC = () => {
+  const naturalPays = useCasinoStore((s) => s.naturalPays);
+  const setNaturalPays = useCasinoStore((s) => s.setNaturalPays);
+  const options = [
+    { value: 'THREE_TO_TWO' as const, label: 'Standard', pays: 'Blackjack pays 3:2' },
+    { value: 'SIX_TO_FIVE' as const, label: 'Tight', pays: 'Blackjack pays 6:5' },
+  ];
+  return (
+    <fieldset className="mt-5 border-t border-white/[0.06] pt-4" data-testid="rules-picker">
+      <legend className="font-mono text-xs text-cream/70">Table rules</legend>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        {options.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            aria-pressed={naturalPays === o.value}
+            onClick={() => {
+              sound.chip();
+              setNaturalPays(o.value);
+            }}
+            className={`rounded-sm border px-3 py-2 text-left font-mono text-xs transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold ${
+              naturalPays === o.value ? 'border-gold-dim bg-gold-dim/20 text-gold-bright shadow-sm' : 'border-white/10 bg-[#1a171a] text-cream/70 hover:bg-white/[0.04]'
+            }`}
+          >
+            <span className="block font-bold">{o.label}</span>
+            <span className="block text-cream/70">{o.pays}</span>
+          </button>
+        ))}
+      </div>
+      <p className="mt-2 font-mono text-xs text-cream/70" data-testid="rules-note">
+        {naturalPays === 'SIX_TO_FIVE'
+          ? 'A natural pays 6 for every 5 staked instead of 3 for every 2. That costs you about 1.4 chips per 100 wagered over the long run. The cards and everything else are unchanged.'
+          : 'The standard casino payout: a natural pays 3 for every 2 staked.'}
+      </p>
+    </fieldset>
+  );
+};
+
 const BuyInPanel: React.FC = () => {
   const activeGame = useCasinoStore((s) => s.activeGame);
   const buyIn = useCasinoStore((s) => s.buyIn);
@@ -350,6 +452,9 @@ const BuyInPanel: React.FC = () => {
           </div>
         </fieldset>
       ) : null}
+
+      {activeGame === 'blackjack' ? <RulesPicker /> : null}
+      {DIFFICULTY_ROOMS.includes(activeGame) ? <DifficultyPicker /> : null}
 
       {/* ── Table Bankroll & Remaining Wallet Projections ───────────────────── */}
       <div className="mt-5 rounded-sm border border-white/[0.06] bg-[#110f11] p-4 font-mono text-xs space-y-2">

@@ -58,6 +58,8 @@ const MAIN = 'main';
 
 const ARCHETYPES: readonly Archetype[] = ['pro', 'gambler', 'rock', 'chaos', 'mathematician', 'beginner'];
 
+import type { NaturalPays } from '@/game/settle';
+
 export interface BlackjackAdapterOptions {
   readonly bankroll: () => number;
   readonly rng: RandomProvider;
@@ -66,6 +68,8 @@ export interface BlackjackAdapterOptions {
   readonly difficulty: number;
   readonly wallet: CasinoWallet;
   readonly sessionId: string;
+  /** What a natural pays. Omitted means the standard 3:2. */
+  readonly naturalPays?: NaturalPays;
 }
 
 /** One hand as the felt draws it. Split hands each get their own. */
@@ -135,6 +139,8 @@ export interface BotInspectorView {
 export interface BlackjackAdapterView {
   readonly phase: string;
   readonly round: number;
+  /** What a natural pays at this table, as the engine settles it. The felt must show this, not a constant. */
+  readonly naturalPays: NaturalPays;
   readonly difficulty: number;
   readonly dealer: {
     readonly cards: readonly { rank: string; suit: string }[];
@@ -188,6 +194,7 @@ class BlackjackAdapter implements CasinoGame<BlackjackAdapterView> {
   private readonly sessionId: string;
   /** Committed this round through the session, before any split/double. */
   private roundInitialBet = 0;
+  private readonly naturalPays: NaturalPays;
   private announcement = '';
 
   constructor(options: BlackjackAdapterOptions) {
@@ -227,7 +234,9 @@ class BlackjackAdapter implements CasinoGame<BlackjackAdapterView> {
     this.session = new ArenaSession(options.rng, new EventStream(), {
       seats,
       difficulty: options.difficulty,
+      ...(options.naturalPays ? { naturalPays: options.naturalPays } : {}),
     });
+    this.naturalPays = options.naturalPays ?? 'THREE_TO_TWO';
   }
 
   private get table(): BlackjackTable {
@@ -243,6 +252,7 @@ class BlackjackAdapter implements CasinoGame<BlackjackAdapterView> {
     return {
       phase: s.phase,
       round: s.round,
+      naturalPays: this.naturalPays,
       difficulty: s.difficulty,
       dealer: {
         cards: s.dealer.cards.map((c) => ({ rank: c.rank, suit: c.suit })),
@@ -339,7 +349,7 @@ class BlackjackAdapter implements CasinoGame<BlackjackAdapterView> {
   }
 
   zones(): readonly WagerZone[] {
-    return [{ id: MAIN, label: 'Hand', pays: '3:2 on 21', group: 'main' }];
+    return [{ id: MAIN, label: 'Hand', pays: this.naturalPays === 'SIX_TO_FIVE' ? '6:5 on 21' : '3:2 on 21', group: 'main' }];
   }
 
   round(): number {

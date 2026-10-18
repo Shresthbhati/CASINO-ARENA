@@ -254,6 +254,9 @@ export const Chat: React.FC<{ view: PartyView; send: Send }> = ({ view, send }) 
           </button>
         ))}
       </div>
+      {view.you.spectator ? (
+        <p className="text-xs text-muted" data-testid="watcher-chat-note">You&rsquo;re watching: you can react, but only players can chat.</p>
+      ) : (
       <form onSubmit={submit} className="flex gap-2">
         <input
           aria-label="Chat message"
@@ -267,6 +270,7 @@ export const Chat: React.FC<{ view: PartyView; send: Send }> = ({ view, send }) 
           Send
         </button>
       </form>
+      )}
     </section>
   );
 };
@@ -300,7 +304,7 @@ export const MemberList: React.FC<{ view: PartyView; send: Send; lobby?: boolean
           {m.muted ? <span className="text-xs text-warn">Muted</span> : null}
           {blocked ? <span className="text-xs text-muted">Blocked</span> : null}
         </div>
-        {!mine && !m.left ? (
+        {!mine && !m.left && !view.you.spectator ? (
           <div className="flex flex-wrap gap-3 pl-4">
             <button type="button" className={small} onClick={() => void send({ type: 'block', memberId: m.id, blocked: !blocked })}>
               {blocked ? 'Unblock' : 'Block'}
@@ -353,6 +357,23 @@ export const MemberList: React.FC<{ view: PartyView; send: Send; lobby?: boolean
   return (
     <section aria-label="Members">
       <ul>{view.members.map(row)}</ul>
+      {view.watchers.length > 0 ? (
+        <div className="mt-2 text-sm" role="region" aria-label="Watching" data-testid="watchers">
+          <p className="text-muted">Watching ({view.watchers.length})</p>
+          <ul>
+            {view.watchers.map((w) => (
+              <li key={w.id} className="flex items-center gap-3 text-cream/90">
+                <span>{w.name}</span>
+                {iAmLeader ? (
+                  <button type="button" className={small} aria-label={`Remove watcher ${w.name}`} onClick={() => void send({ type: 'kick', memberId: w.id })}>
+                    Remove
+                  </button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {iAmLeader && view.reports && view.reports.some((r) => r.status === 'open') ? (
         <div className="mt-2 border border-warn/40 p-2 text-sm text-cream/90" role="region" aria-label="Open reports">
           <p className="font-medium text-warn">Open reports</p>
@@ -409,7 +430,7 @@ export const Scoreboard: React.FC<{ view: PartyView }> = ({ view }) =>
     </section>
   ) : null;
 
-export const Standings: React.FC<{ view: PartyView }> = ({ view }) =>
+export const Standings: React.FC<{ view: PartyView; send?: Send }> = ({ view, send }) =>
   view.standings ? (
     <section aria-label="Final standings" className="border border-gold/40 bg-panel-deep p-4">
       <h3 className="font-display text-xl text-cream">Final standings</h3>
@@ -427,6 +448,22 @@ export const Standings: React.FC<{ view: PartyView }> = ({ view }) =>
           </li>
         ))}
       </ol>
+      {send ? (
+        view.you.memberId === view.leaderId ? (
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              className="min-h-11 rounded-sm bg-gold px-4 text-sm font-semibold text-ink hover:bg-gold-bright focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+              onClick={() => void send({ type: 'rematch' })}
+            >
+              Play again with this group
+            </button>
+            <span className="text-xs text-muted">Back to the lobby with the same players and settings. Everyone readies up again.</span>
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-muted" data-testid="rematch-wait">Waiting for the leader to open a rematch.</p>
+        )
+      ) : null}
     </section>
   ) : null;
 
@@ -459,6 +496,8 @@ export const PartyTable: React.FC<{ view: PartyView; online: boolean; send: Send
   return (
     <div className="grid w-full gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="flex min-w-0 flex-col gap-3">
+        {/* A finished session leads with its result and the way to play again, not a screen below the felt. */}
+        {view.phase === 'ENDED' ? <Standings view={view} send={send} /> : null}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
           <span className="inline-flex items-center gap-1.5 border border-gold-dim/50 px-2 py-0.5 text-gold-bright">
             <span aria-hidden="true">🔒</span> Private room <span className="font-mono">{view.code}</span>
@@ -514,8 +553,6 @@ export const PartyTable: React.FC<{ view: PartyView; online: boolean; send: Send
             </button>
           </p>
         ) : null}
-
-        <Standings view={view} />
 
         <div className="flex flex-wrap gap-2">
           {iAmLeader && view.phase === 'PLAYING' ? (

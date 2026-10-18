@@ -30,7 +30,15 @@ beforeAll(async () => {
       created.push(path);
     }
   }
-  server = await createServer({ root, logLevel: 'silent', server: { port: 0, host: '127.0.0.1', strictPort: false, watch: null } });
+  // No dependency discovery: this test only asks which files are served, never needs pre-bundled
+  // dependencies, and a scan still running when `close()` is called leaves `close()` waiting on esbuild
+  // indefinitely (it hangs on a slow runner, never on a fast laptop).
+  server = await createServer({
+    root,
+    logLevel: 'silent',
+    server: { port: 0, host: '127.0.0.1', strictPort: false, watch: null },
+    optimizeDeps: { noDiscovery: true, include: [] },
+  });
   await server.listen();
   const addr = server.httpServer!.address();
   base = `http://127.0.0.1:${typeof addr === 'object' && addr ? addr.port : 0}`;
@@ -39,7 +47,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await server?.close();
   for (const p of created) rmSync(p, { force: true });
-});
+}, 60_000);
 
 const get = async (path: string) => {
   const res = await fetch(base + path);
@@ -68,6 +76,13 @@ describe('the dev server', () => {
 
   it('keeps denying what Vite denies by default', async () => {
     expect((await get('/.git/config')).status).toBe(403);
-    expect((await get('/@fs/C:/Windows/win.ini')).status).toBe(403);
+    // A real file outside the project root must be refused. The file has to exist on this platform:
+    // a path that does not exist is not "outside the root", it is just a miss, and Vite answers a miss
+    // with the app shell.
+    const outside = process.platform === 'win32' ? 'C:/Windows/win.ini' : '/etc/passwd';
+    const r = await get(`/@fs/${outside.replace(/^\//, '')}`);
+    expect(existsSync(outside)).toBe(true);
+    expect(r.status).toBe(403);
+    expect(r.body).not.toContain('root:');
   });
 });

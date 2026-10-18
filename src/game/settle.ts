@@ -61,11 +61,20 @@ export function playDealer(deck: Deck, dealer: Hand): { dealer: Hand; deck: Deck
   return { dealer: hand, deck: rest };
 }
 
+/**
+ * What a natural blackjack pays. 3:2 is the standard table and the default everywhere.
+ * 6:5 is an openly offered tighter-rules variant: it is only ever used when the player
+ * picks it, it is shown on the buy-in screen and on the felt, and it never touches
+ * the deal. It pays the player less per natural and nothing else changes.
+ */
+export type NaturalPays = 'THREE_TO_TWO' | 'SIX_TO_FIVE';
+
 /** Profit in cents, before returning the stake. Negative for a loss. */
-export function profitFor(result: RoundResult, bet: number): number {
+export function profitFor(result: RoundResult, bet: number, naturalPays: NaturalPays = 'THREE_TO_TWO'): number {
   switch (result) {
     case 'PLAYER_BLACKJACK':
-      return Math.round((bet * 3) / 2);
+      // 6:5 rounds down, in the house's favour, as a physical table does.
+      return naturalPays === 'SIX_TO_FIVE' ? Math.floor((bet * 6) / 5) : Math.round((bet * 3) / 2);
     case 'PLAYER_WIN':
     case 'DEALER_BUST':
       return bet;
@@ -93,8 +102,8 @@ export function profitFor(result: RoundResult, bet: number): number {
  * Cents returned to the bankroll for a result, including the returned stake.
  * The stake was already deducted when the hand was dealt.
  */
-export function payoutFor(result: RoundResult, bet: number): number {
-  return Math.max(0, bet + profitFor(result, bet));
+export function payoutFor(result: RoundResult, bet: number, naturalPays: NaturalPays = 'THREE_TO_TWO'): number {
+  return Math.max(0, bet + profitFor(result, bet, naturalPays));
 }
 
 /**

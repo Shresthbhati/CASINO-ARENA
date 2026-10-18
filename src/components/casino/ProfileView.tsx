@@ -115,7 +115,7 @@ export const ProfileView: React.FC = () => {
                 <p className="text-xs text-muted">{m.detail}</p>
               </div>
               <div className="w-32 shrink-0">
-                <div className="h-1 w-full bg-black/60" role="progressbar" aria-valuemin={0} aria-valuemax={m.target} aria-valuenow={m.progress} aria-label={m.title}>
+                <div className="h-1 w-full bg-white/10" role="progressbar" aria-valuemin={0} aria-valuemax={m.target} aria-valuenow={m.progress} aria-label={m.title}>
                   <div className="h-full bg-gold" style={{ width: `${(m.progress / m.target) * 100}%` }} />
                 </div>
                 <p className="mt-1 text-right text-xs tnum text-muted">{m.progress} / {m.target}</p>

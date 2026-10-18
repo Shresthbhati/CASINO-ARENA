@@ -25,6 +25,7 @@
  * | `casino.history.v1` | completed session summaries | **implemented** |
  * | `casino.achievements.v1` | trophy progress + unlock times | **implemented** |
  * | `casino.settings.v1` | difficulty + starting bankroll | **implemented** |
+ * | `casino.mastery.v1` | XP, daily quest progress, day streak, room tiers (never chips) | **implemented** |
  * | `casino.opponent.holdem.v1` | the Hold'em bots' learned read of the player (aggregate frequencies only) | **implemented** |
  *
  * **An in-progress session is intentionally NOT persisted.** A reload drops the
@@ -56,12 +57,16 @@ import { browserRepository } from '@/casino/games/holdem/opponent-model';
 import { gameSpec, isPlayable, maxOpponentsFor, playableGames, validateBuyIn } from '@/casino/registry';
 import { TableSession, unresolvedExposureReason, type SessionSummary } from '@/casino/session';
 import type { GameRound, EngineResult } from '@/casino/engine';
+import { climbDifficulty } from '@/arena/ai/difficulty';
+import { applyRound as applyMastery, emptyMastery, sanitizeMastery, type MasteryNote, type MasteryState } from '@/casino/mastery';
+import type { NaturalPays } from '@/game/settle';
 import type { GameId } from '@/types/arena';
 
 const WALLET_KEY = 'casino.wallet.v1';
 const HISTORY_KEY = 'casino.history.v1';
 const TROPHIES_KEY = 'casino.achievements.v1';
 const SETTINGS_KEY = 'casino.settings.v1';
+const MASTERY_KEY = 'casino.mastery.v1';
 
 /**
  * The AI difficulties a player may pick.
@@ -77,8 +82,13 @@ const SETTINGS_KEY = 'casino.settings.v1';
 export const DIFFICULTIES = [70, 80, 90, 95] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];
 
-function isDifficulty(value: unknown): value is Difficulty {
-  return DIFFICULTIES.includes(value as Difficulty);
+/** The bots toughen with the player's experience in the room (see `climbDifficulty`). */
+export const CLIMB = 'climb' as const;
+/** What a player can choose: a fixed level or Climb. `null` is Adaptive. */
+export type DifficultySetting = Difficulty | typeof CLIMB;
+
+function isDifficulty(value: unknown): value is DifficultySetting {
+  return value === CLIMB || DIFFICULTIES.includes(value as Difficulty);
 }
 
 /**
@@ -94,7 +104,9 @@ function isDifficulty(value: unknown): value is Difficulty {
  * casino has no reason to believe it.
  */
 interface CasinoSettings {
-  readonly difficulty: Difficulty | null;
+  /** What a natural pays at the blackjack table the player sits down at. Standard is 3:2. */
+  readonly naturalPays: NaturalPays;
+  readonly difficulty: DifficultySetting | null;
   readonly startingBankroll: number;
 }
 
@@ -113,7 +125,7 @@ export const MAX_STARTING_BANKROLL = 10_000_000;
 export const HOLDEM_BLINDS = { smallBlind: 10, bigBlind: 20 } as const;
 
 function defaultSettings(): CasinoSettings {
-  return { difficulty: null, startingBankroll: OPENING_WALLET_BALANCE };
+  return { difficulty: null, startingBankroll: OPENING_WALLET_BALANCE, naturalPays: 'THREE_TO_TWO' };
 }
 
 function loadSettings(): CasinoSettings {
@@ -133,6 +145,7 @@ function loadSettings(): CasinoSettings {
   return {
     difficulty: isDifficulty(candidate.difficulty) ? candidate.difficulty : null,
     startingBankroll: bankroll,
+    naturalPays: candidate.naturalPays === 'SIX_TO_FIVE' ? 'SIX_TO_FIVE' : 'THREE_TO_TWO',
   };
 }
 
@@ -200,10 +213,14 @@ export interface CasinoState {
    * only place it is allowed to matter. See `BlackjackAdapter`'s fairness notes:
    * difficulty tunes bot *policy*, never card selection.
    */
-  readonly difficulty: Difficulty | null;
+  readonly difficulty: DifficultySetting | null;
+  /** What a natural blackjack pays at the next blackjack table (3:2 standard, or the disclosed 6:5 variant). */
+  readonly naturalPays: NaturalPays;
   /** Persisted opening bankroll, in chips. */
   readonly startingBankroll: number;
   readonly session: TableSession<unknown> | null;
+  /** The bot level the current table was actually built with (Climb resolved), or null with no table. */
+  readonly tableDifficulty: number | null;
   readonly lastRound: GameRound | null;
   readonly announcement: string;
 
@@ -219,6 +236,11 @@ export interface CasinoState {
   readonly streak: { readonly current: number; readonly best: number };
   /** True while the trophy pane should be marked as sample content. */
   readonly demoMode: boolean;
+  /** XP, level, daily quests, day streak and room tiers. Pays XP only, never chips. */
+  readonly mastery: MasteryState;
+  /** Unseen level-ups, quest completions and tier-ups, for the toast. */
+  readonly masteryNotes: readonly MasteryNote[];
+  dismissMasteryNotes: () => void;
 
   openGame: (id: GameId) => void;
   setBuyIn: (amount: number) => void;
@@ -230,7 +252,9 @@ export interface CasinoState {
    * mean the bots' skill shifts under a hand that is already in play. The player
    * chooses between tables, not during one.
    */
-  setDifficulty: (value: Difficulty | null) => { ok: boolean; reason: string };
+  setDifficulty: (value: DifficultySetting | null) => { ok: boolean; reason: string };
+  /** Choose what a natural pays at the next blackjack table. Refused while a table is open. */
+  setNaturalPays: (value: NaturalPays) => { ok: boolean; reason: string };
   /** Choose the bankroll a fresh casino opens with. */
   setStartingBankroll: (amount: number) => { ok: boolean; reason: string };
   confirmBuyIn: () => { ok: boolean; reason: string };
@@ -254,6 +278,11 @@ export interface CasinoState {
   commit: () => void;
   /** Fold one settled round's events into the visible state and the trophies. */
   absorbRound: (round: GameRound) => void;
+  /**
+   * Credit XP (never chips) for a finished multiplayer round. It touches nothing but the mastery state:
+   * not the wallet, the ledger, the trophies, room tiers or Climb.
+   */
+  absorbPartyRound: (round: { readonly gameId: GameId; readonly won: boolean }) => void;
 }
 
 // ── persistence ────────────────────────────────────────────────────────────
@@ -425,6 +454,17 @@ function applyTrophies(
   return { trophies: next, streak: { current: nextStreak, best: bestStreak } };
 }
 
+/** Local calendar day, `YYYY-MM-DD`: the quest board turns over at the player's midnight. */
+export function localDayKey(now: Date = new Date()): string {
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${m}-${d}`;
+}
+
+function loadMastery(): MasteryState {
+  return sanitizeMastery(readJson(MASTERY_KEY), localDayKey());
+}
+
 const initialWallet = loadWallet();
 // A live table is never persisted, but its buy-in is (it is a ledger entry). So a
 // reload or a closed tab can leave a session open in the saved ledger with nobody
@@ -459,14 +499,19 @@ export const useCasinoStore = create<CasinoState>((set, get) => ({
   buyIn: 1_000,
   opponents: 3,
   difficulty: initialSettings.difficulty,
+  naturalPays: initialSettings.naturalPays,
   startingBankroll: initialSettings.startingBankroll,
   session: null,
+  tableDifficulty: null,
   lastRound: null,
   announcement: startupAnnouncement(recoveredSessions),
   history: loadHistory(),
   trophies: loadTrophies(),
   streak: { current: 0, best: 0 },
   demoMode: false,
+  mastery: loadMastery(),
+  masteryNotes: [],
+  dismissMasteryNotes: () => set({ masteryNotes: [] }),
 
   /** Persist the wallet and refresh every derived figure the UI reads. */
   commit: () => {
@@ -521,7 +566,15 @@ export const useCasinoStore = create<CasinoState>((set, get) => ({
       return { ok: false, reason: 'finish or leave the current table before changing difficulty' };
     }
     set({ difficulty: value });
-    writeJson(SETTINGS_KEY, { difficulty: value, startingBankroll: get().startingBankroll });
+    writeJson(SETTINGS_KEY, { difficulty: value, startingBankroll: get().startingBankroll, naturalPays: get().naturalPays });
+    return { ok: true, reason: '' };
+  },
+
+  setNaturalPays: (value) => {
+    if (value !== 'THREE_TO_TWO' && value !== 'SIX_TO_FIVE') return { ok: false, reason: 'unknown rule' };
+    if (get().session) return { ok: false, reason: 'finish or leave the current table before changing the rules' };
+    set({ naturalPays: value });
+    writeJson(SETTINGS_KEY, { difficulty: get().difficulty, startingBankroll: get().startingBankroll, naturalPays: value });
     return { ok: true, reason: '' };
   },
 
@@ -544,7 +597,7 @@ export const useCasinoStore = create<CasinoState>((set, get) => ({
       };
     }
     set({ startingBankroll: amount });
-    writeJson(SETTINGS_KEY, { difficulty: get().difficulty, startingBankroll: amount });
+    writeJson(SETTINGS_KEY, { difficulty: get().difficulty, startingBankroll: amount, naturalPays: get().naturalPays });
     return { ok: true, reason: '' };
   },
 
@@ -556,7 +609,10 @@ export const useCasinoStore = create<CasinoState>((set, get) => ({
    * the buy-in rather than leaving the player at a door with no table.
    */
   confirmBuyIn: () => {
-    const { wallet, activeGame, buyIn, difficulty } = get();
+    const { wallet, activeGame, buyIn } = get();
+    // Climb resolves here, once, from rounds already played in this room.
+    const chosen = get().difficulty;
+    const difficulty: number | null = chosen === CLIMB ? climbDifficulty(get().mastery.roomRounds[activeGame] ?? 0) : chosen;
     const spec = gameSpec(activeGame);
     if (!spec) return { ok: false, reason: 'unknown room' };
     // Re-clamped at the door as well: the session must report the table that is
@@ -586,6 +642,8 @@ export const useCasinoStore = create<CasinoState>((set, get) => ({
       // factory treats it as "not chosen" and falls back to its own default
       // rather than pinning a number the player never picked.
       ...(difficulty !== null ? { difficulty } : {}),
+      // Only blackjack reads this. Standard 3:2 unless the player chose the disclosed 6:5 table.
+      ...(activeGame === 'blackjack' && get().naturalPays === 'SIX_TO_FIVE' ? { naturalPays: 'SIX_TO_FIVE' as const } : {}),
       // Hold'em needs the buy-in split across the table. The player's own stack
       // is the buy-in, because only their chips are backed by the wallet; every
       // AI seat gets the same float, so the buy-in governs the human's play and
@@ -618,6 +676,7 @@ export const useCasinoStore = create<CasinoState>((set, get) => ({
 
     set({
       session,
+      tableDifficulty: difficulty,
       screen: 'table',
       lastRound: null,
       announcement: `Seated at ${spec.name} with ${buyIn.toLocaleString()} chips.`,
@@ -665,6 +724,19 @@ export const useCasinoStore = create<CasinoState>((set, get) => ({
     return round;
   },
 
+  absorbPartyRound: (round) => {
+    const mastered = applyMastery(
+      get().mastery,
+      { source: 'party', gameId: round.gameId, settled: true, won: round.won, winRun: 0 },
+      localDayKey(),
+      playableGames().map((g) => g.id),
+      (id) => gameSpec(id)?.name ?? id,
+    );
+    if (mastered.xpGained === 0 && mastered.state === get().mastery) return;
+    writeJson(MASTERY_KEY, mastered.state);
+    set({ mastery: mastered.state, masteryNotes: [...get().masteryNotes, ...mastered.notes].slice(-6) });
+  },
+
   /** Fold a round's events into the visible state and the trophy case. */
   absorbRound: (round) => {
     const { trophies, history, streak } = get();
@@ -693,11 +765,22 @@ export const useCasinoStore = create<CasinoState>((set, get) => ({
       streak,
     );
 
+    const mastered = applyMastery(
+      get().mastery,
+      { gameId: round.gameId, settled: settled.length > 0, won: wonRounds > 0, winRun: applied.streak.current },
+      localDayKey(),
+      playableGames().map((g) => g.id),
+      (id) => gameSpec(id)?.name ?? id,
+    );
+    writeJson(MASTERY_KEY, mastered.state);
+
     set({
       lastRound: round,
       announcement: round.announcement,
       trophies: applied.trophies,
       streak: applied.streak,
+      mastery: mastered.state,
+      masteryNotes: [...get().masteryNotes, ...mastered.notes].slice(-6),
     });
     get().commit();
   },
@@ -762,6 +845,7 @@ export const useCasinoStore = create<CasinoState>((set, get) => ({
 
     set({
       session: null,
+      tableDifficulty: null,
       screen: 'summary',
       history: nextHistory,
       trophies: applied.trophies,
@@ -791,7 +875,11 @@ export const useCasinoStore = create<CasinoState>((set, get) => ({
     writeJson(WALLET_KEY, fresh.snapshot());
     writeJson(HISTORY_KEY, []);
     saveTrophies([]);
+    const freshMastery = emptyMastery(localDayKey());
+    writeJson(MASTERY_KEY, freshMastery);
     set({
+      mastery: freshMastery,
+      masteryNotes: [],
       wallet: fresh,
       summary: fresh.summary(),
       inventory: fresh.inventory(),
@@ -804,6 +892,7 @@ export const useCasinoStore = create<CasinoState>((set, get) => ({
       // the first hand of a brand new wallet.
       streak: { current: 0, best: 0 },
       session: null,
+      tableDifficulty: null,
       screen: 'lobby',
       lastRound: null,
       announcement: 'Casino reset. Fresh wallet, no history, no trophies.',

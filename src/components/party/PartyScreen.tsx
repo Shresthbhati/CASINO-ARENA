@@ -4,6 +4,7 @@
  * Party chips are a separate, virtual stack that exists only inside the party; they never touch
  * the casino wallet or ledger. Hold'em is the only game with party support in this release.
  */
+import { useNotifyChoice } from './useTurnAlert';
 import React, { useEffect, useState } from 'react';
 import type { PartyConfig, PartyGame, PartyView } from '@/party/types';
 import { LIMITS } from '@/party/types';
@@ -43,7 +44,8 @@ export const Home: React.FC<{
   busy: boolean;
   create: (name: string, config?: Partial<PartyConfig>) => Promise<boolean>;
   join: (code: string, name: string) => Promise<boolean>;
-}> = ({ savedName, busy, create, join }) => {
+  watch: (code: string, name: string) => Promise<boolean>;
+}> = ({ savedName, busy, create, join, watch }) => {
   const [name, setName] = useState(savedName);
   const [code, setCode] = useState(initialCode);
   const [game, setGame] = useState<PartyGame>('texas-holdem');
@@ -114,6 +116,18 @@ export const Home: React.FC<{
         >
           Join party
         </button>
+        <button
+          type="button"
+          disabled={busy || !name.trim() || code.trim().length < 4}
+          className={`${quiet} mt-2`}
+          onClick={() => {
+            sound.chip();
+            void watch(code.trim(), name.trim());
+          }}
+        >
+          Watch instead
+        </button>
+        <p className="mt-2 text-xs text-muted">Watching lets you see a table, even one already under way, without playing. You never see anyone&rsquo;s cards.</p>
       </section>
     </div>
   );
@@ -362,8 +376,47 @@ export const Lobby: React.FC<{ view: PartyView; send: Send; leave: () => Promise
   );
 };
 
+/** The opt-in for browser notifications. Browsers only allow asking when the player clicks. */
+const NotifyToggle: React.FC = () => {
+  const { state, toggle } = useNotifyChoice();
+  if (state === 'unsupported') return null;
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+      <button type="button" className={quiet} aria-pressed={state === 'on'} disabled={state === 'denied'} onClick={() => void toggle()}>
+        {state === 'on' ? 'Turn alerts: on' : 'Turn alerts: off'}
+      </button>
+      <span className="text-muted">
+        {state === 'denied'
+          ? 'Notifications are blocked in your browser settings. You still get a sound and the tab title.'
+          : "A sound and the tab title always tell you when it's your turn. Turn this on for a pop-up too."}
+      </span>
+    </div>
+  );
+};
+
+/** What someone watching sees while the party is still in its lobby: who is here, and a way out. */
+const WatcherLobby: React.FC<{ view: PartyView; leave: () => Promise<void> }> = ({ view, leave }) => (
+  <section aria-label="Watching" className="flex flex-col gap-4 border border-gold-dim/40 bg-panel-deep p-5" data-testid="watcher-lobby">
+    <h3 className="font-display text-xl text-cream">
+      You&rsquo;re watching {GAME_NAME[view.config.game]} <span className="font-mono text-sm text-muted">· {view.code}</span>
+    </h3>
+    <p className="text-sm text-muted">The table will appear here when the leader starts the game. You can react and leave; you can&rsquo;t play or chat.</p>
+    <ul className="text-sm text-cream">
+      {view.members.filter((m) => !m.left).map((m) => (
+        <li key={m.id}>
+          {m.isLeader ? '♛ ' : ''}
+          {m.name}
+        </li>
+      ))}
+    </ul>
+    <button type="button" className={`${quiet} self-start`} onClick={() => void leave()}>
+      Stop watching
+    </button>
+  </section>
+);
+
 export const PartyScreen: React.FC = () => {
-  const { view, online, error, busy, resuming, forget, fetchHistory, create, join, send, leave, savedName } = usePartySession();
+  const { view, online, error, busy, resuming, forget, fetchHistory, create, join, watch, send, leave, savedName } = usePartySession();
   // A live table takes the whole phone screen: the bottom navigation bar steps aside while one is shown.
   const live = Boolean(view && view.phase !== 'LOBBY');
   const deviceOnline = useOnline();
@@ -379,6 +432,14 @@ export const PartyScreen: React.FC = () => {
         <p className="mt-1 text-sm text-muted">
           Play with friends in a private room: Texas Hold&apos;em, roulette or blackjack. Party chips are virtual, separate from your wallet, and gone when the party ends.
         </p>
+        <p className="mt-1 text-xs text-muted" data-testid="party-xp-note">
+          Finished party rounds earn XP and count toward today&rsquo;s quests, up to 40 rounds a day. XP is a score, never chips.
+        </p>
+        {view ? (
+          <div className="mt-3">
+            <NotifyToggle />
+          </div>
+        ) : null}
       </header>
 
       {!deviceOnline ? (
@@ -404,7 +465,9 @@ export const PartyScreen: React.FC = () => {
           </button>
         </section>
       ) : !view ? (
-        <Home savedName={savedName} busy={busy} create={create} join={join} />
+        <Home savedName={savedName} busy={busy} create={create} join={join} watch={watch} />
+      ) : view.phase === 'LOBBY' && view.you.spectator ? (
+        <WatcherLobby view={view} leave={leave} />
       ) : view.phase === 'LOBBY' ? (
         <Lobby view={view} send={send} leave={leave} />
       ) : view.blackjack ? (
@@ -415,7 +478,7 @@ export const PartyScreen: React.FC = () => {
         <PartyTable view={view} online={online} send={send} leave={leave} history={fetchHistory} />
       ) : (
         <div className="flex flex-col gap-3">
-          <Standings view={view} />
+          <Standings view={view} send={send} />
           <button type="button" className={`${quiet} self-start`} onClick={() => void leave()}>
             Leave party
           </button>

@@ -18,6 +18,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net';
 import type { PartyServer } from './server';
 import { renderHistoryText } from './history';
+import { createStaticServer } from './static';
 import type { Command, ErrorCode, PartyConfig, PartyView } from './types';
 
 export interface HttpOptions {
@@ -33,6 +34,16 @@ export interface HttpOptions {
   readonly joinPerMinute?: number;
   /** Live event streams one member may hold; opening another closes the oldest. */
   readonly maxStreamsPerMember?: number;
+  /**
+   * Behind exactly one reverse proxy (the usual host), every request arrives from the proxy's own
+   * address, so per-address rate limits would be shared by every player. With this on, the address is
+   * the LAST entry of `x-forwarded-for`, the one the proxy itself appended: earlier entries are whatever
+   * the client chose to send and are ignored. Leave it off when the server is reachable directly,
+   * because then the header is entirely client-controlled and would let anyone dodge the limits.
+   */
+  readonly trustProxy?: boolean;
+  /** A built app folder (`dist`) to serve alongside the API, so one process is the whole product. Omit for API only. */
+  readonly staticDir?: string;
   /** Told about any unexpected failure while handling a request. Gets the error only; nothing from the request. */
   readonly onError?: (error: unknown) => void;
 }
@@ -72,7 +83,15 @@ export function createPartyHttpServer(party: PartyServer, options: HttpOptions =
   const allowJoin = bucketLimiter(options.joinPerMinute ?? 30);
   const maxStreams = options.maxStreamsPerMember ?? 5;
   const streams = new Map<string, Set<ServerResponse>>();
-  const clientOf = (req: IncomingMessage): string => req.socket.remoteAddress ?? 'unknown';
+  const staticServer = options.staticDir ? createStaticServer(options.staticDir) : null;
+  const clientOf = (req: IncomingMessage): string => {
+    if (options.trustProxy) {
+      const header = req.headers['x-forwarded-for'];
+      const last = (Array.isArray(header) ? header.join(',') : header ?? '').split(',').at(-1)?.trim();
+      if (last) return last.slice(0, 64);
+    }
+    return req.socket.remoteAddress ?? 'unknown';
+  };
 
   const cors = (): Record<string, string> =>
     options.allowOrigin
@@ -230,6 +249,13 @@ export function createPartyHttpServer(party: PartyServer, options: HttpOptions =
           }
           verdict(res, party.join(str(b.code), str(b.name)));
           return;
+        case '/api/party/watch':
+          if (!allowJoin(clientOf(req), Date.now())) {
+            json(res, 429, { ok: false, code: 'RATE_LIMITED', message: 'Too many attempts; try again in a minute' });
+            return;
+          }
+          verdict(res, party.watch(str(b.code), str(b.name)));
+          return;
         case '/api/party/command':
           verdict(res, party.command(str(b.code), str(b.memberId), String(req.headers['x-party-token'] ?? ''), (b.command ?? {}) as Command));
           return;
@@ -238,6 +264,8 @@ export function createPartyHttpServer(party: PartyServer, options: HttpOptions =
       }
     }
 
+    // Anything under /api is ours and never falls through to the app shell.
+    if (staticServer && !url.pathname.startsWith('/api/') && staticServer.handle(req, res, url.pathname)) return;
     json(res, 404, { ok: false, code: 'NOT_FOUND', message: 'no such route' });
   };
 

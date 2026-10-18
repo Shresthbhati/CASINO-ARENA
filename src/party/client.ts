@@ -92,6 +92,13 @@ export class PartyClient {
     return r;
   }
 
+  /** Watch a party without playing in it. The credentials work like a player's, with fewer powers. */
+  async watch(code: string, name: string): Promise<Verdict<Credentials>> {
+    const r = await this.post<Credentials>('watch', { code, name });
+    if (r.ok) this.creds = { code: r.code, memberId: r.memberId, token: r.token };
+    return r;
+  }
+
   /** Resume with saved credentials (e.g. after a page reload). */
   resume(creds: Credentials): void {
     this.creds = creds;

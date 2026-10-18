@@ -5,7 +5,7 @@
  * from the one authoritative wallet and ledger.
  */
 
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { CasinoFloor } from '@/components/casino/CasinoFloor';
 import { TableHost } from '@/components/casino/TableHost';
 import {
@@ -17,6 +17,10 @@ import { WalletView } from '@/components/casino/WalletView';
 import { ProfileView } from '@/components/casino/ProfileView';
 import { PracticeView } from '@/components/casino/PracticeView';
 import { CasinoNav } from '@/components/casino/CasinoNav';
+import { MasteryToasts } from '@/components/casino/MasteryToasts';
+import { usePartySession } from '@/components/party/usePartySession';
+import { useTurnAlert } from '@/components/party/useTurnAlert';
+import { usePartyXp } from '@/components/party/usePartyXp';
 import { gameSpec } from '@/casino/registry';
 import { DESKTOP_QUERY, useMediaQuery } from '@/lib/useMediaQuery';
 import { useImmersive } from '@/lib/immersive';
@@ -38,6 +42,14 @@ const TITLES: Partial<Record<CasinoScreen, string>> = {
   party: 'Party',
 };
 
+/** Party things that must keep working from any screen: the turn alert, and XP for finished rounds. */
+function PartyTurnAlerts() {
+  const { view } = usePartySession();
+  useTurnAlert(view);
+  usePartyXp(view);
+  return null;
+}
+
 export default function App() {
   const screen = useCasinoStore((s) => s.screen);
   const session = useCasinoStore((s) => s.session);
@@ -49,6 +61,12 @@ export default function App() {
   const online = useOnline();
   const updateReady = useUpdateReady();
 
+  // A new screen starts at its top. Without this, opening a buy-in from the middle of a long floor
+  // lands the player partway down the form with its title off-screen.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [screen]);
+
   return (
     <div className="flex min-h-full flex-col items-center bg-void text-cream">
       <a
@@ -58,6 +76,8 @@ export default function App() {
         Skip to main content
       </a>
       <CasinoNav />
+      <MasteryToasts />
+      <PartyTurnAlerts />
 
       {!online || updateReady ? (
         <div role="status" className="flex w-full flex-wrap items-center justify-center gap-x-4 gap-y-2 border-b border-gold-dim/50 bg-felt-deep px-4 py-2 text-center text-sm text-cream">

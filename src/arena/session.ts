@@ -56,12 +56,16 @@ export function defaultSeats(bankroll = 10_000): SeatConfig[] {
   ];
 }
 
+import type { NaturalPays } from '@/game/settle';
+
 export interface SessionOptions {
   readonly seed?: number;
   readonly difficulty?: number;
   readonly elite?: boolean;
   readonly seats?: readonly SeatConfig[];
   readonly behaviourAlpha?: number;
+  /** What a natural pays at this table. Omitted means 3:2. */
+  readonly naturalPays?: NaturalPays;
 }
 
 
@@ -109,6 +113,7 @@ export class ArenaSession {
     this.table = new BlackjackTable(rng, this.events, {
       seats: options.seats ?? defaultSeats(),
       difficulty: this.difficulty,
+      ...(options.naturalPays ? { naturalPays: options.naturalPays } : {}),
     });
   }
 

@@ -37,6 +37,29 @@ export const MAX_DIFFICULTY = 90;
 export const ELITE_CEILING = 95;
 
 /**
+ * "Climb": the bots get tougher as the player gains experience in a room.
+ *
+ * Level is a pure function of how many rounds the player has already settled in
+ * this room. It never reads wins, losses, bankroll or the current session, so it
+ * cannot punish a good run or reward a bad one, and it cannot be reset by leaving
+ * a table: a regular faces full-strength bots, a newcomer meets gentler ones.
+ *
+ * The first `CLIMB_WARMUP` rounds sit at the start level, then the level rises
+ * linearly to `ELITE_CEILING` over `CLIMB_SPAN` more rounds and stays there.
+ * Like everything in this file it has no access to the shoe, the deck, the RNG or
+ * any payout: it only picks how well the bots play.
+ */
+export const CLIMB_START = 55;
+export const CLIMB_WARMUP = 10;
+export const CLIMB_SPAN = 240;
+
+export function climbDifficulty(roundsInRoom: number): number {
+  const rounds = Number.isFinite(roundsInRoom) ? Math.max(0, Math.trunc(roundsInRoom)) : 0;
+  const t = Math.max(0, Math.min(1, (rounds - CLIMB_WARMUP) / CLIMB_SPAN));
+  return Math.round(CLIMB_START + t * (ELITE_CEILING - CLIMB_START));
+}
+
+/**
  * A skill estimate in 0-1.
  *
  * Weighted rather than averaged, because the three signals are not equally
