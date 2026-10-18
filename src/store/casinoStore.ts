@@ -59,6 +59,7 @@ import { TableSession, unresolvedExposureReason, type SessionSummary } from '@/c
 import type { GameRound, EngineResult } from '@/casino/engine';
 import { climbDifficulty } from '@/arena/ai/difficulty';
 import { applyRound as applyMastery, emptyMastery, sanitizeMastery, type MasteryNote, type MasteryState } from '@/casino/mastery';
+import type { NaturalPays } from '@/game/settle';
 import type { GameId } from '@/types/arena';
 
 const WALLET_KEY = 'casino.wallet.v1';
@@ -103,6 +104,8 @@ function isDifficulty(value: unknown): value is DifficultySetting {
  * casino has no reason to believe it.
  */
 interface CasinoSettings {
+  /** What a natural pays at the blackjack table the player sits down at. Standard is 3:2. */
+  readonly naturalPays: NaturalPays;
   readonly difficulty: DifficultySetting | null;
   readonly startingBankroll: number;
 }
@@ -122,7 +125,7 @@ export const MAX_STARTING_BANKROLL = 10_000_000;
 export const HOLDEM_BLINDS = { smallBlind: 10, bigBlind: 20 } as const;
 
 function defaultSettings(): CasinoSettings {
-  return { difficulty: null, startingBankroll: OPENING_WALLET_BALANCE };
+  return { difficulty: null, startingBankroll: OPENING_WALLET_BALANCE, naturalPays: 'THREE_TO_TWO' };
 }
 
 function loadSettings(): CasinoSettings {
@@ -142,6 +145,7 @@ function loadSettings(): CasinoSettings {
   return {
     difficulty: isDifficulty(candidate.difficulty) ? candidate.difficulty : null,
     startingBankroll: bankroll,
+    naturalPays: candidate.naturalPays === 'SIX_TO_FIVE' ? 'SIX_TO_FIVE' : 'THREE_TO_TWO',
   };
 }
 
@@ -210,6 +214,8 @@ export interface CasinoState {
    * difficulty tunes bot *policy*, never card selection.
    */
   readonly difficulty: DifficultySetting | null;
+  /** What a natural blackjack pays at the next blackjack table (3:2 standard, or the disclosed 6:5 variant). */
+  readonly naturalPays: NaturalPays;
   /** Persisted opening bankroll, in chips. */
   readonly startingBankroll: number;
   readonly session: TableSession<unknown> | null;
@@ -247,6 +253,8 @@ export interface CasinoState {
    * chooses between tables, not during one.
    */
   setDifficulty: (value: DifficultySetting | null) => { ok: boolean; reason: string };
+  /** Choose what a natural pays at the next blackjack table. Refused while a table is open. */
+  setNaturalPays: (value: NaturalPays) => { ok: boolean; reason: string };
   /** Choose the bankroll a fresh casino opens with. */
   setStartingBankroll: (amount: number) => { ok: boolean; reason: string };
   confirmBuyIn: () => { ok: boolean; reason: string };
@@ -486,6 +494,7 @@ export const useCasinoStore = create<CasinoState>((set, get) => ({
   buyIn: 1_000,
   opponents: 3,
   difficulty: initialSettings.difficulty,
+  naturalPays: initialSettings.naturalPays,
   startingBankroll: initialSettings.startingBankroll,
   session: null,
   tableDifficulty: null,
@@ -552,7 +561,15 @@ export const useCasinoStore = create<CasinoState>((set, get) => ({
       return { ok: false, reason: 'finish or leave the current table before changing difficulty' };
     }
     set({ difficulty: value });
-    writeJson(SETTINGS_KEY, { difficulty: value, startingBankroll: get().startingBankroll });
+    writeJson(SETTINGS_KEY, { difficulty: value, startingBankroll: get().startingBankroll, naturalPays: get().naturalPays });
+    return { ok: true, reason: '' };
+  },
+
+  setNaturalPays: (value) => {
+    if (value !== 'THREE_TO_TWO' && value !== 'SIX_TO_FIVE') return { ok: false, reason: 'unknown rule' };
+    if (get().session) return { ok: false, reason: 'finish or leave the current table before changing the rules' };
+    set({ naturalPays: value });
+    writeJson(SETTINGS_KEY, { difficulty: get().difficulty, startingBankroll: get().startingBankroll, naturalPays: value });
     return { ok: true, reason: '' };
   },
 
@@ -575,7 +592,7 @@ export const useCasinoStore = create<CasinoState>((set, get) => ({
       };
     }
     set({ startingBankroll: amount });
-    writeJson(SETTINGS_KEY, { difficulty: get().difficulty, startingBankroll: amount });
+    writeJson(SETTINGS_KEY, { difficulty: get().difficulty, startingBankroll: amount, naturalPays: get().naturalPays });
     return { ok: true, reason: '' };
   },
 
@@ -620,6 +637,8 @@ export const useCasinoStore = create<CasinoState>((set, get) => ({
       // factory treats it as "not chosen" and falls back to its own default
       // rather than pinning a number the player never picked.
       ...(difficulty !== null ? { difficulty } : {}),
+      // Only blackjack reads this. Standard 3:2 unless the player chose the disclosed 6:5 table.
+      ...(activeGame === 'blackjack' && get().naturalPays === 'SIX_TO_FIVE' ? { naturalPays: 'SIX_TO_FIVE' as const } : {}),
       // Hold'em needs the buy-in split across the table. The player's own stack
       // is the buy-in, because only their chips are backed by the wallet; every
       // AI seat gets the same float, so the buy-in governs the human's play and

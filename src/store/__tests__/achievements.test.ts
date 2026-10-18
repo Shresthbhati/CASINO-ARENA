@@ -377,3 +377,21 @@ describe('Climb difficulty resolves from experience in the room', () => {
     expect(useCasinoStore.getState().tableDifficulty).toBe(80);
   });
 });
+
+describe('the disclosed 6:5 table rule', () => {
+  it('defaults to standard 3:2, is a validated persisted choice, and reaches the engine', () => {
+    expect(useCasinoStore.getState().naturalPays).toBe('THREE_TO_TWO');
+    expect(useCasinoStore.getState().setNaturalPays('nonsense' as never).ok).toBe(false);
+    expect(useCasinoStore.getState().setNaturalPays('SIX_TO_FIVE').ok).toBe(true);
+    expect(useCasinoStore.getState().naturalPays).toBe('SIX_TO_FIVE');
+
+    useCasinoStore.getState().openGame('blackjack');
+    expect(useCasinoStore.getState().confirmBuyIn().ok).toBe(true);
+    const view = useCasinoStore.getState().session!.view() as { naturalPays?: string };
+    expect(view.naturalPays).toBe('SIX_TO_FIVE');
+    // Changing the rules is refused while a table is open.
+    expect(useCasinoStore.getState().setNaturalPays('THREE_TO_TWO').ok).toBe(false);
+    useCasinoStore.getState().setNaturalPays('SIX_TO_FIVE');
+    useCasinoStore.setState({ naturalPays: 'THREE_TO_TWO' });
+  });
+});

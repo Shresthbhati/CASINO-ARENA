@@ -40,3 +40,23 @@ describe('the AI difficulty picker', () => {
     expect(screen.getByText(/never changes the cards, dice or payouts/i)).toBeTruthy();
   });
 });
+
+describe('the blackjack table-rules picker', () => {
+  it('shows only for blackjack, discloses the cost of 6:5 in plain words, and sets the real rule', () => {
+    useCasinoStore.setState({ naturalPays: 'THREE_TO_TWO' });
+    act(() => useCasinoStore.getState().openGame('roulette'));
+    const first = render(<CasinoFloor />);
+    expect(screen.queryByTestId('rules-picker')).toBeNull();
+    first.unmount();
+
+    act(() => useCasinoStore.getState().openGame('blackjack'));
+    render(<CasinoFloor />);
+    expect(screen.getByTestId('rules-note').textContent).toMatch(/3 for every 2/);
+    fireEvent.click(screen.getByRole('button', { name: /Tight/ }));
+    expect(useCasinoStore.getState().naturalPays).toBe('SIX_TO_FIVE');
+    const note = screen.getByTestId('rules-note').textContent ?? '';
+    expect(note).toMatch(/6 for every 5/);
+    expect(note).toMatch(/costs you about 1\.4 chips per 100 wagered/);
+    useCasinoStore.setState({ naturalPays: 'THREE_TO_TWO' });
+  });
+});

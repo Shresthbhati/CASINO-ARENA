@@ -27,6 +27,7 @@ export default defineConfig({
     // The engine (src/game) is pure TypeScript and runs in plain Node.
     // jsdom is only required for the few component tests that touch the DOM.
     environment: 'jsdom',
+    setupFiles: ['./src/test-setup.ts'],
     testTimeout: 20000,
     // Serial by design: the simulation labs each run 50k-round sweeps and would
     // otherwise contend for the same cores, which makes the whole run slower and

@@ -143,7 +143,7 @@ export const BlackjackFelt: React.FC<BlackjackFeltProps> = ({
             Blackjack 21 · Royal Club
           </span>
           <span className="font-mono text-xs text-gold-bright mt-0.5">
-            BLACKJACK PAYS 3 TO 2 · DEALER MUST STAND ON 17
+            BLACKJACK PAYS {view.naturalPays === 'SIX_TO_FIVE' ? '6 TO 5' : '3 TO 2'} · DEALER MUST STAND ON 17
           </span>
         </div>
 
@@ -211,17 +211,17 @@ export const BlackjackFelt: React.FC<BlackjackFeltProps> = ({
               >
                 {/* Seat Header / Archetype Badge */}
                 <div className="flex w-full items-center justify-between gap-1 border-b border-white/10 pb-1.5 font-mono text-xs">
-                  <div className="flex items-center gap-1.5 truncate">
+                  <div className="flex min-w-0 items-center gap-1.5">
                     <span
                       className={`h-2 w-2 rounded-full ${
                         isTurn ? 'bg-gold-bright animate-ping' : seat.isHuman ? 'bg-gold' : 'bg-cream/40'
                       }`}
                     />
-                    <span className="font-bold text-cream truncate">{seat.name}</span>
+                    <span className="truncate font-bold text-cream" title={seat.name}>{seat.name}</span>
                   </div>
 
                   {!seat.isHuman && (
-                    <span className="rounded px-1.5 py-0.5 text-xs font-semibold bg-white/5 text-gold-bright">
+                    <span className="rounded px-1.5 py-0.5 text-xs font-semibold bg-white/5 text-gold-bright max-sm:hidden">
                       {seat.archetype}
                     </span>
                   )}
@@ -406,7 +406,7 @@ export const BlackjackFelt: React.FC<BlackjackFeltProps> = ({
               onClearBets();
             }}
             disabled={currentStake <= 0 || awaitingPlayer || phase === 'PLAYER_TURN'}
-            className={`min-h-12 rounded-sm border border-white/15 px-4 py-2.5 font-mono text-xs text-cream/70 hover:bg-white/[0.04] disabled:cursor-not-allowed disabled:opacity-30 transition ${legalActions.length > 0 ? 'max-sm:hidden short:hidden' : ''}`}
+            className={`min-h-12 rounded-sm border border-white/15 px-4 py-2.5 font-mono text-xs text-cream/70 hover:bg-white/[0.04] disabled:cursor-not-allowed disabled:opacity-50 transition ${legalActions.length > 0 ? 'max-sm:hidden short:hidden' : ''}`}
           >
             Clear <span className="hidden text-xs text-cream/70 [@media(hover:hover)]:inline">(C)</span>
           </button>
@@ -418,7 +418,7 @@ export const BlackjackFelt: React.FC<BlackjackFeltProps> = ({
               onDeal();
             }}
             disabled={currentStake <= 0 || awaitingPlayer || phase === 'PLAYER_TURN' || phase === 'DEALER_TURN'}
-            className={`min-h-12 rounded-sm border border-gold-dim/60 bg-gold-dim/20 px-8 py-2.5 font-mono text-xs font-bold text-gold-bright shadow hover:bg-gold-dim/30 hover:border-gold-bright active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 transition ${legalActions.length > 0 ? 'max-sm:hidden short:hidden' : ''}`}
+            className={`min-h-12 rounded-sm border border-gold-dim/60 bg-gold-dim/20 px-8 py-2.5 font-mono text-xs font-bold text-gold-bright shadow hover:bg-gold-dim/30 hover:border-gold-bright active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 transition ${legalActions.length > 0 ? 'max-sm:hidden short:hidden' : ''}`}
           >
             Deal <span className="hidden text-xs opacity-75 [@media(hover:hover)]:inline">(Enter)</span>
           </button>

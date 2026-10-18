@@ -40,3 +40,31 @@ describe('mastery UI', () => {
     expect(screen.getAllByText(/^1 \/ /).length).toBeGreaterThan(0);
   });
 });
+
+describe('mastery panel on a phone', () => {
+  const stub = (matches: boolean) =>
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: () => ({ matches, addEventListener: () => undefined, removeEventListener: () => undefined }),
+    });
+
+  it('collapses the quests behind a one-line summary so the rooms stay on the first screen', () => {
+    stub(false);
+    const { container } = render(<MasteryPanel />);
+    const details = container.querySelector('details');
+    expect(details).not.toBeNull();
+    expect(details?.hasAttribute('open')).toBe(false);
+    expect(screen.getByText(/to go/)).toBeTruthy();
+    expect(screen.getAllByTestId('quest')).toHaveLength(3); // still in the DOM, reachable by one tap
+    expect(screen.getByTestId('mastery-title').textContent).toBe('Walk-in');
+    Reflect.deleteProperty(window, 'matchMedia');
+  });
+
+  it('shows the full two-column layout, with no collapsible, on a laptop', () => {
+    stub(true);
+    const { container } = render(<MasteryPanel />);
+    expect(container.querySelector('details')).toBeNull();
+    expect(screen.getAllByTestId('quest')).toHaveLength(3);
+    Reflect.deleteProperty(window, 'matchMedia');
+  });
+});

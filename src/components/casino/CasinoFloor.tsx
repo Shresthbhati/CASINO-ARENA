@@ -262,6 +262,45 @@ const DifficultyPicker: React.FC = () => {
   );
 };
 
+/** Blackjack table rules. 6:5 is a worse deal for the player and is labelled as exactly that. */
+const RulesPicker: React.FC = () => {
+  const naturalPays = useCasinoStore((s) => s.naturalPays);
+  const setNaturalPays = useCasinoStore((s) => s.setNaturalPays);
+  const options = [
+    { value: 'THREE_TO_TWO' as const, label: 'Standard', pays: 'Blackjack pays 3:2' },
+    { value: 'SIX_TO_FIVE' as const, label: 'Tight', pays: 'Blackjack pays 6:5' },
+  ];
+  return (
+    <fieldset className="mt-5 border-t border-white/[0.06] pt-4" data-testid="rules-picker">
+      <legend className="font-mono text-xs text-cream/70">Table rules</legend>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        {options.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            aria-pressed={naturalPays === o.value}
+            onClick={() => {
+              sound.chip();
+              setNaturalPays(o.value);
+            }}
+            className={`rounded-sm border px-3 py-2 text-left font-mono text-xs transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold ${
+              naturalPays === o.value ? 'border-gold-dim bg-gold-dim/20 text-gold-bright shadow-sm' : 'border-white/10 bg-[#1a171a] text-cream/70 hover:bg-white/[0.04]'
+            }`}
+          >
+            <span className="block font-bold">{o.label}</span>
+            <span className="block text-cream/70">{o.pays}</span>
+          </button>
+        ))}
+      </div>
+      <p className="mt-2 font-mono text-xs text-cream/70" data-testid="rules-note">
+        {naturalPays === 'SIX_TO_FIVE'
+          ? 'A natural pays 6 for every 5 staked instead of 3 for every 2. That costs you about 1.4 chips per 100 wagered over the long run. The cards and everything else are unchanged.'
+          : 'The standard casino payout: a natural pays 3 for every 2 staked.'}
+      </p>
+    </fieldset>
+  );
+};
+
 const BuyInPanel: React.FC = () => {
   const activeGame = useCasinoStore((s) => s.activeGame);
   const buyIn = useCasinoStore((s) => s.buyIn);
@@ -414,6 +453,7 @@ const BuyInPanel: React.FC = () => {
         </fieldset>
       ) : null}
 
+      {activeGame === 'blackjack' ? <RulesPicker /> : null}
       {DIFFICULTY_ROOMS.includes(activeGame) ? <DifficultyPicker /> : null}
 
       {/* ── Table Bankroll & Remaining Wallet Projections ───────────────────── */}

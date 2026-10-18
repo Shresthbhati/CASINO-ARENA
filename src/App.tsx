@@ -5,7 +5,7 @@
  * from the one authoritative wallet and ledger.
  */
 
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { CasinoFloor } from '@/components/casino/CasinoFloor';
 import { TableHost } from '@/components/casino/TableHost';
 import {
@@ -49,6 +49,12 @@ export default function App() {
   const barRoom = !desktop && screen !== 'table' && !immersive;
   const online = useOnline();
   const updateReady = useUpdateReady();
+
+  // A new screen starts at its top. Without this, opening a buy-in from the middle of a long floor
+  // lands the player partway down the form with its title off-screen.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [screen]);
 
   return (
     <div className="flex min-h-full flex-col items-center bg-void text-cream">

@@ -7,6 +7,7 @@
  * `COMING_SOON` honest: there is no partial construction to fall back on.
  */
 
+import type { NaturalPays } from '@/game/settle';
 import { createRandomProvider, type RandomProvider } from '@/arena/core/rng';
 import type { GameId } from '@/types/arena';
 import type { CasinoGame } from './engine';
@@ -32,6 +33,8 @@ export interface EngineOptions {
   readonly opponents?: number;
   /** Only read by blackjack: the adaptive difficulty. */
   readonly difficulty?: number | undefined;
+  /** Only read by blackjack: what a natural pays. Omitted means the standard 3:2. */
+  readonly naturalPays?: NaturalPays | undefined;
   /**
    * Only read by blackjack. It reconciles the extra chips a split or a double
    * commits from inside the engine, so it needs the authority to post them.
@@ -99,6 +102,7 @@ export function createEngine(id: GameId, options: EngineOptions): CasinoGame<unk
         difficulty: options.difficulty ?? 70,
         wallet: options.wallet,
         sessionId: options.sessionId,
+        ...(options.naturalPays ? { naturalPays: options.naturalPays } : {}),
       });
     }
     case 'texas-holdem':

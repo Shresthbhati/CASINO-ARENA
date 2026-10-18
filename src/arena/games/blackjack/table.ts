@@ -46,7 +46,7 @@
 
 import { createShuffledDeck, draw, type Deck } from '@/game/deck';
 import { evaluate } from '@/game/hand';
-import { payoutFor, resolveRound } from '@/game/settle';
+import { payoutFor, resolveRound, type NaturalPays } from '@/game/settle';
 import { isSplittablePair, type Card, type Hand, type RoundResult } from '@/game/types';
 import { createRandomProvider, deriveSeed, type RandomProvider } from '@/arena/core/rng';
 import type { EventStream, PublishedCard } from '@/arena/core/events';
@@ -159,6 +159,8 @@ export interface TableConfig {
     readonly bankroll?: number;
   }[];
   readonly difficulty: number;
+  /** What a natural pays. Omitted means the standard 3:2. */
+  readonly naturalPays?: NaturalPays;
 }
 
 /** Per-seat AI state, kept outside the immutable game state on purpose. */
@@ -207,6 +209,7 @@ function createSeatState(cfg: TableConfig['seats'][number]): SeatState {
 export class BlackjackTable {
   private state: TableState;
   private readonly brains = new Map<string, SeatBrain>();
+  private readonly naturalPays: NaturalPays;
   /**
    * Per-seat decision streams, plus one for emotion.
    *
@@ -226,6 +229,7 @@ export class BlackjackTable {
     private readonly events: EventStream,
     config: TableConfig,
   ) {
+    this.naturalPays = config.naturalPays ?? 'THREE_TO_TWO';
     const baseSeed = rng.seed ?? Math.floor(Date.now() % 0xffffffff);
     this.seatRng = new Map();
     for (const cfg of config.seats) {
@@ -1024,7 +1028,7 @@ export class BlackjackTable {
         const result: RoundResult = hand.surrendered
           ? 'SURRENDER'
           : resolveRound(hand.cards, dealer);
-        const payout = payoutFor(result, hand.bet);
+        const payout = payoutFor(result, hand.bet, this.naturalPays);
         returned += payout;
         return { ...hand, result, payout };
       });

@@ -208,6 +208,11 @@ On the buy-in screen for Hold'em, Omaha and blackjack you can pick the AI's stre
 in that room, from level 55 up to 95), or a fixed Casual, Standard, Hard or Elite. Difficulty
 changes how well the AI plays. It never changes the cards, dice or payouts.
 
+Blackjack also offers a **Tight** table where a natural pays 6:5 instead of 3:2. It is labelled on the
+buy-in screen and on the felt, costs the player about 1.4 chips per 100 wagered (measured: a natural
+with the dealer not matching it occurs on about 4.66% of deals, and 6:5 pays 0.3 less per unit), and
+changes nothing else. The default is the standard 3:2 table, and Party mode always plays 3:2.
+
 ## Getting started
 
 ```bash
