@@ -183,6 +183,31 @@ The engine is a pure reducer with no timers. The store drives
 `DEALER_REVEAL → DEALER_TURN → RESOLVING` on timers purely so the table can
 animate.
 
+## Multiplayer (Party mode)
+
+Private, invite-code rooms for Texas Hold'em, roulette and blackjack (solo or two teams). Full
+details are in [`docs/PARTY.md`](docs/PARTY.md); the short version:
+
+```bash
+npm run party:server   # the authoritative game server, on :8787
+npm run dev            # the web app on :5173, proxied to the server
+```
+
+1. Open **Party** in two browser tabs (or two devices on the same network).
+2. Tab 1: pick a game, enter a name, **Create party**. It shows a six-character invite code and a link.
+3. Tab 2: enter the code and a name, **Join party**.
+4. Everyone except the leader taps **Ready**; the leader taps **Start game**. Add bot seats in the
+   table settings if you want more opponents than humans.
+
+Party chips are separate virtual stacks and never touch your casino wallet.
+
+## AI difficulty
+
+On the buy-in screen for Hold'em, Omaha and blackjack you can pick the AI's strength: **Adaptive**
+(starts easy, follows your skill), **Climb** (the bots get tougher the more rounds you have played
+in that room, from level 55 up to 95), or a fixed Casual, Standard, Hard or Elite. Difficulty
+changes how well the AI plays. It never changes the cards, dice or payouts.
+
 ## Getting started
 
 ```bash

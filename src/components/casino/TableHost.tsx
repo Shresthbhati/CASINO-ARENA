@@ -40,7 +40,7 @@ export const TableHost: React.FC = () => {
   const playRound = useCasinoStore((s) => s.playRound);
   const act = useCasinoStore((s) => s.act);
   const endSession = useCasinoStore((s) => s.endSession);
-  const difficulty = useCasinoStore((s) => s.difficulty) ?? 80;
+  const difficulty = useCasinoStore((s) => s.tableDifficulty) ?? 80;
 
   const [confirmExit, setConfirmExit] = useState(false);
   // Forgetting the learned profile changes engine state the store does not own, so

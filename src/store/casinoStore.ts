@@ -57,6 +57,7 @@ import { browserRepository } from '@/casino/games/holdem/opponent-model';
 import { gameSpec, isPlayable, maxOpponentsFor, playableGames, validateBuyIn } from '@/casino/registry';
 import { TableSession, unresolvedExposureReason, type SessionSummary } from '@/casino/session';
 import type { GameRound, EngineResult } from '@/casino/engine';
+import { climbDifficulty } from '@/arena/ai/difficulty';
 import { applyRound as applyMastery, emptyMastery, sanitizeMastery, type MasteryNote, type MasteryState } from '@/casino/mastery';
 import type { GameId } from '@/types/arena';
 
@@ -80,8 +81,13 @@ const MASTERY_KEY = 'casino.mastery.v1';
 export const DIFFICULTIES = [70, 80, 90, 95] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];
 
-function isDifficulty(value: unknown): value is Difficulty {
-  return DIFFICULTIES.includes(value as Difficulty);
+/** The bots toughen with the player's experience in the room (see `climbDifficulty`). */
+export const CLIMB = 'climb' as const;
+/** What a player can choose: a fixed level or Climb. `null` is Adaptive. */
+export type DifficultySetting = Difficulty | typeof CLIMB;
+
+function isDifficulty(value: unknown): value is DifficultySetting {
+  return value === CLIMB || DIFFICULTIES.includes(value as Difficulty);
 }
 
 /**
@@ -97,7 +103,7 @@ function isDifficulty(value: unknown): value is Difficulty {
  * casino has no reason to believe it.
  */
 interface CasinoSettings {
-  readonly difficulty: Difficulty | null;
+  readonly difficulty: DifficultySetting | null;
   readonly startingBankroll: number;
 }
 
@@ -203,10 +209,12 @@ export interface CasinoState {
    * only place it is allowed to matter. See `BlackjackAdapter`'s fairness notes:
    * difficulty tunes bot *policy*, never card selection.
    */
-  readonly difficulty: Difficulty | null;
+  readonly difficulty: DifficultySetting | null;
   /** Persisted opening bankroll, in chips. */
   readonly startingBankroll: number;
   readonly session: TableSession<unknown> | null;
+  /** The bot level the current table was actually built with (Climb resolved), or null with no table. */
+  readonly tableDifficulty: number | null;
   readonly lastRound: GameRound | null;
   readonly announcement: string;
 
@@ -238,7 +246,7 @@ export interface CasinoState {
    * mean the bots' skill shifts under a hand that is already in play. The player
    * chooses between tables, not during one.
    */
-  setDifficulty: (value: Difficulty | null) => { ok: boolean; reason: string };
+  setDifficulty: (value: DifficultySetting | null) => { ok: boolean; reason: string };
   /** Choose the bankroll a fresh casino opens with. */
   setStartingBankroll: (amount: number) => { ok: boolean; reason: string };
   confirmBuyIn: () => { ok: boolean; reason: string };
@@ -480,6 +488,7 @@ export const useCasinoStore = create<CasinoState>((set, get) => ({
   difficulty: initialSettings.difficulty,
   startingBankroll: initialSettings.startingBankroll,
   session: null,
+  tableDifficulty: null,
   lastRound: null,
   announcement: startupAnnouncement(recoveredSessions),
   history: loadHistory(),
@@ -578,7 +587,10 @@ export const useCasinoStore = create<CasinoState>((set, get) => ({
    * the buy-in rather than leaving the player at a door with no table.
    */
   confirmBuyIn: () => {
-    const { wallet, activeGame, buyIn, difficulty } = get();
+    const { wallet, activeGame, buyIn } = get();
+    // Climb resolves here, once, from rounds already played in this room.
+    const chosen = get().difficulty;
+    const difficulty: number | null = chosen === CLIMB ? climbDifficulty(get().mastery.roomRounds[activeGame] ?? 0) : chosen;
     const spec = gameSpec(activeGame);
     if (!spec) return { ok: false, reason: 'unknown room' };
     // Re-clamped at the door as well: the session must report the table that is
@@ -640,6 +652,7 @@ export const useCasinoStore = create<CasinoState>((set, get) => ({
 
     set({
       session,
+      tableDifficulty: difficulty,
       screen: 'table',
       lastRound: null,
       announcement: `Seated at ${spec.name} with ${buyIn.toLocaleString()} chips.`,
@@ -795,6 +808,7 @@ export const useCasinoStore = create<CasinoState>((set, get) => ({
 
     set({
       session: null,
+      tableDifficulty: null,
       screen: 'summary',
       history: nextHistory,
       trophies: applied.trophies,
@@ -841,6 +855,7 @@ export const useCasinoStore = create<CasinoState>((set, get) => ({
       // the first hand of a brand new wallet.
       streak: { current: 0, best: 0 },
       session: null,
+      tableDifficulty: null,
       screen: 'lobby',
       lastRound: null,
       announcement: 'Casino reset. Fresh wallet, no history, no trophies.',

@@ -20,6 +20,16 @@ describe('the AI difficulty picker', () => {
     expect(useCasinoStore.getState().difficulty).toBeNull();
   });
 
+  it('offers Climb and says plainly what level the bots will play at and what it ignores', () => {
+    act(() => useCasinoStore.getState().openGame('texas-holdem'));
+    render(<CasinoFloor />);
+    fireEvent.click(screen.getByRole('button', { name: 'Climb' }));
+    expect(useCasinoStore.getState().difficulty).toBe('climb');
+    const note = screen.getByTestId('difficulty-note').textContent ?? '';
+    expect(note).toMatch(/level 55 of 95/);
+    expect(note).toMatch(/never looks at your wins or losses/i);
+  });
+
   it('is absent where there is no AI to tune, and says it never touches cards or payouts', () => {
     act(() => useCasinoStore.getState().openGame('roulette'));
     const { unmount } = render(<CasinoFloor />);

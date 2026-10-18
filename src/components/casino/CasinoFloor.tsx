@@ -9,7 +9,8 @@
 import React, { useState } from 'react';
 import { GAMES, gameSpec, isPlayable, maxOpponentsFor, type GameSpec } from '@/casino/registry';
 import { DENOMINATIONS } from '@/arena/core/chips';
-import { useCasinoStore, DIFFICULTIES, type Difficulty } from '@/store/casinoStore';
+import { useCasinoStore, CLIMB, DIFFICULTIES, type Difficulty, type DifficultySetting } from '@/store/casinoStore';
+import { CLIMB_START, ELITE_CEILING, climbDifficulty } from '@/arena/ai/difficulty';
 import type { GameId } from '@/types/arena';
 import { sound } from './Sound';
 import { MasteryPanel } from './MasteryPanel';
@@ -222,7 +223,10 @@ const DIFFICULTY_NOTE: Record<Difficulty, string> = {
 const DifficultyPicker: React.FC = () => {
   const difficulty = useCasinoStore((s) => s.difficulty);
   const setDifficulty = useCasinoStore((s) => s.setDifficulty);
-  const choose = (value: Difficulty | null) => {
+  const activeGame = useCasinoStore((s) => s.activeGame);
+  const roundsHere = useCasinoStore((s) => s.mastery.roomRounds[activeGame] ?? 0);
+  const climbLevel = climbDifficulty(roundsHere);
+  const choose = (value: DifficultySetting | null) => {
     sound.chip();
     setDifficulty(value);
   };
@@ -230,12 +234,21 @@ const DifficultyPicker: React.FC = () => {
     `py-2 rounded-sm border font-mono text-xs font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold ${
       on ? 'border-gold-dim bg-gold-dim/20 text-gold-bright shadow-sm' : 'border-white/10 bg-[#1a171a] text-cream/70 hover:bg-white/[0.04]'
     }`;
+  const note =
+    difficulty === null
+      ? 'Starts easy and gets tougher as you play better. It follows your skill, never your wins or losses.'
+      : difficulty === CLIMB
+        ? `Bots get tougher the more you play this room: level ${CLIMB_START} for newcomers up to ${ELITE_CEILING} for regulars. You have ${roundsHere.toLocaleString()} rounds here, so they will play at level ${climbLevel} of ${ELITE_CEILING}. It never looks at your wins or losses and never resets when you leave.`
+        : DIFFICULTY_NOTE[difficulty];
   return (
     <fieldset className="mt-5 border-t border-white/[0.06] pt-4" data-testid="difficulty-picker">
       <legend className="font-mono text-xs text-cream/70">AI difficulty</legend>
-      <div className="mt-2 grid grid-cols-5 gap-2">
+      <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-6">
         <button type="button" aria-pressed={difficulty === null} onClick={() => choose(null)} className={cls(difficulty === null)}>
           Adaptive
+        </button>
+        <button type="button" aria-pressed={difficulty === CLIMB} onClick={() => choose(CLIMB)} className={cls(difficulty === CLIMB)}>
+          Climb
         </button>
         {DIFFICULTIES.map((d) => (
           <button key={d} type="button" aria-pressed={difficulty === d} onClick={() => choose(d)} className={cls(difficulty === d)}>
@@ -243,9 +256,7 @@ const DifficultyPicker: React.FC = () => {
           </button>
         ))}
       </div>
-      <p className="mt-2 font-mono text-xs text-cream/70">
-        {difficulty === null ? 'Starts easy and gets tougher as you play better. It follows your skill, never your wins or losses.' : DIFFICULTY_NOTE[difficulty]}
-      </p>
+      <p className="mt-2 font-mono text-xs text-cream/70" data-testid="difficulty-note">{note}</p>
       <p className="mt-1 font-mono text-xs text-muted">Difficulty changes how well the AI plays. It never changes the cards, dice or payouts.</p>
     </fieldset>
   );
