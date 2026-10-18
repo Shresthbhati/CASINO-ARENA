@@ -39,7 +39,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await server?.close();
   for (const p of created) rmSync(p, { force: true });
-});
+}, 60_000);
 
 const get = async (path: string) => {
   const res = await fetch(base + path);
@@ -68,6 +68,13 @@ describe('the dev server', () => {
 
   it('keeps denying what Vite denies by default', async () => {
     expect((await get('/.git/config')).status).toBe(403);
-    expect((await get('/@fs/C:/Windows/win.ini')).status).toBe(403);
+    // A real file outside the project root must be refused. The file has to exist on this platform:
+    // a path that does not exist is not "outside the root", it is just a miss, and Vite answers a miss
+    // with the app shell.
+    const outside = process.platform === 'win32' ? 'C:/Windows/win.ini' : '/etc/passwd';
+    const r = await get(`/@fs/${outside.replace(/^\//, '')}`);
+    expect(existsSync(outside)).toBe(true);
+    expect(r.status).toBe(403);
+    expect(r.body).not.toContain('root:');
   });
 });
