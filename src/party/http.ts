@@ -34,6 +34,14 @@ export interface HttpOptions {
   readonly joinPerMinute?: number;
   /** Live event streams one member may hold; opening another closes the oldest. */
   readonly maxStreamsPerMember?: number;
+  /**
+   * Behind exactly one reverse proxy (the usual host), every request arrives from the proxy's own
+   * address, so per-address rate limits would be shared by every player. With this on, the address is
+   * the LAST entry of `x-forwarded-for`, the one the proxy itself appended: earlier entries are whatever
+   * the client chose to send and are ignored. Leave it off when the server is reachable directly,
+   * because then the header is entirely client-controlled and would let anyone dodge the limits.
+   */
+  readonly trustProxy?: boolean;
   /** A built app folder (`dist`) to serve alongside the API, so one process is the whole product. Omit for API only. */
   readonly staticDir?: string;
   /** Told about any unexpected failure while handling a request. Gets the error only; nothing from the request. */
@@ -76,7 +84,14 @@ export function createPartyHttpServer(party: PartyServer, options: HttpOptions =
   const maxStreams = options.maxStreamsPerMember ?? 5;
   const streams = new Map<string, Set<ServerResponse>>();
   const staticServer = options.staticDir ? createStaticServer(options.staticDir) : null;
-  const clientOf = (req: IncomingMessage): string => req.socket.remoteAddress ?? 'unknown';
+  const clientOf = (req: IncomingMessage): string => {
+    if (options.trustProxy) {
+      const header = req.headers['x-forwarded-for'];
+      const last = (Array.isArray(header) ? header.join(',') : header ?? '').split(',').at(-1)?.trim();
+      if (last) return last.slice(0, 64);
+    }
+    return req.socket.remoteAddress ?? 'unknown';
+  };
 
   const cors = (): Record<string, string> =>
     options.allowOrigin

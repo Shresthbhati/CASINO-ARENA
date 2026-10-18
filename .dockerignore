@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+.github
+.party-state.json*
+.party-data
+*.log
+coverage
+docs

@@ -58,7 +58,8 @@ for (const sig of ['SIGINT', 'SIGTERM'] as const) {
 
 // STATIC_DIR (for example `dist`) makes this one process serve the built app as well as the API.
 const staticDir = process.env.STATIC_DIR;
-const http = createPartyHttpServer(party, { ...(staticDir ? { staticDir } : {}), onError: (e) => console.error(`request failed: ${(e as Error).message}`) });
+// TRUST_PROXY=1 only when exactly one reverse proxy sits in front (it makes per-player rate limits work).
+const http = createPartyHttpServer(party, { ...(process.env.TRUST_PROXY === '1' ? { trustProxy: true } : {}), ...(staticDir ? { staticDir } : {}), onError: (e) => console.error(`request failed: ${(e as Error).message}`) });
 const bound = await http.listen(port, process.env.HOST ?? '127.0.0.1');
 console.log(`Party server listening on http://${process.env.HOST ?? '127.0.0.1'}:${bound}${staticDir ? ` (also serving ${staticDir})` : ''}`);
 
