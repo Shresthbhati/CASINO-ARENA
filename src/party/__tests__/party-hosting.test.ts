@@ -30,7 +30,15 @@ beforeAll(async () => {
       created.push(path);
     }
   }
-  server = await createServer({ root, logLevel: 'silent', server: { port: 0, host: '127.0.0.1', strictPort: false, watch: null } });
+  // No dependency discovery: this test only asks which files are served, never needs pre-bundled
+  // dependencies, and a scan still running when `close()` is called leaves `close()` waiting on esbuild
+  // indefinitely (it hangs on a slow runner, never on a fast laptop).
+  server = await createServer({
+    root,
+    logLevel: 'silent',
+    server: { port: 0, host: '127.0.0.1', strictPort: false, watch: null },
+    optimizeDeps: { noDiscovery: true, include: [] },
+  });
   await server.listen();
   const addr = server.httpServer!.address();
   base = `http://127.0.0.1:${typeof addr === 'object' && addr ? addr.port : 0}`;
