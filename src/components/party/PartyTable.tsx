@@ -409,7 +409,7 @@ export const Scoreboard: React.FC<{ view: PartyView }> = ({ view }) =>
     </section>
   ) : null;
 
-export const Standings: React.FC<{ view: PartyView }> = ({ view }) =>
+export const Standings: React.FC<{ view: PartyView; send?: Send }> = ({ view, send }) =>
   view.standings ? (
     <section aria-label="Final standings" className="border border-gold/40 bg-panel-deep p-4">
       <h3 className="font-display text-xl text-cream">Final standings</h3>
@@ -427,6 +427,22 @@ export const Standings: React.FC<{ view: PartyView }> = ({ view }) =>
           </li>
         ))}
       </ol>
+      {send ? (
+        view.you.memberId === view.leaderId ? (
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              className="min-h-11 rounded-sm bg-gold px-4 text-sm font-semibold text-ink hover:bg-gold-bright focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+              onClick={() => void send({ type: 'rematch' })}
+            >
+              Play again with this group
+            </button>
+            <span className="text-xs text-muted">Back to the lobby with the same players and settings. Everyone readies up again.</span>
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-muted" data-testid="rematch-wait">Waiting for the leader to open a rematch.</p>
+        )
+      ) : null}
     </section>
   ) : null;
 
@@ -515,7 +531,7 @@ export const PartyTable: React.FC<{ view: PartyView; online: boolean; send: Send
           </p>
         ) : null}
 
-        <Standings view={view} />
+        <Standings view={view} send={send} />
 
         <div className="flex flex-wrap gap-2">
           {iAmLeader && view.phase === 'PLAYING' ? (

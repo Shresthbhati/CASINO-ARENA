@@ -259,7 +259,7 @@ export const RouletteTable: React.FC<{ view: PartyView; online: boolean; send: S
           </section>
         ) : null}
 
-        <Standings view={view} />
+        <Standings view={view} send={send} />
 
         <div className="flex flex-wrap gap-2">
           {iAmLeader && view.phase === 'PLAYING' ? (

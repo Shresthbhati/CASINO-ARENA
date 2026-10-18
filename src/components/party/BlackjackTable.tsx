@@ -305,7 +305,7 @@ export const BlackjackTable: React.FC<{ view: PartyView; online: boolean; send: 
           </section>
         ) : null}
 
-        {ended ? <Standings view={view} /> : null}
+        {ended ? <Standings view={view} send={send} /> : null}
 
         <div className="flex flex-wrap gap-2">
           {iAmLeader && view.phase === 'PLAYING' ? (

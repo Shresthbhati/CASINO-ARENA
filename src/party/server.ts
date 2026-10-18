@@ -606,6 +606,12 @@ export class PartyServer {
         this.finish(party, 'The leader ended the session');
         return { ok: true };
       }
+      case 'rematch': {
+        const bad = leaderOnly() ?? phaseIs('ENDED');
+        if (bad) return bad;
+        this.rematch(party);
+        return { ok: true };
+      }
       case 'leave':
         this.removeMember(party, member, `${member.name} left`);
         return { ok: true };
@@ -1081,6 +1087,48 @@ export class PartyServer {
       players: party.sessionPlayers.map((p) => ({ ...p })),
     };
     return { ok: true, export: buildExport({ scope: req.scope, visibility, status: ended ? 'ended' : 'live', session, hands: exportHands, rounds, blackjackRounds: bjRounds, final }) };
+  }
+
+  /**
+   * Put a finished party back in its lobby: same members, same settings, a clean slate.
+   *
+   * Everything a session leaves behind is reset to exactly what a freshly opened party holds, so
+   * the next `start` cannot inherit a hand, a shoe, a journal or a result from the last one.
+   * Members who left stay recorded as left; everyone still here has to ready up again. Nothing is
+   * dealt and no chips move: the next session opens every stack at the configured starting chips.
+   */
+  private rematch(party: PartyRec): void {
+    party.phase = 'LOBBY';
+    party.paused = false;
+    party.table = null;
+    party.roulette = null;
+    party.blackjack = null;
+    party.bjRounds = [];
+    party.handRecords = [];
+    party.roundRecords = [];
+    party.sessionPlayers = [];
+    party.startedAt = null;
+    party.endedAt = null;
+    party.seatPlan = [];
+    party.journal = [];
+    party.checkpoint = null;
+    party.tapes.clear();
+    party.seatMembers = [];
+    party.history = [];
+    party.standings = null;
+    party.turnKey = '';
+    party.handEndedAt = null;
+    party.waiting = false;
+    party.countedHand = 0;
+    for (const m of party.members) {
+      m.ready = false;
+      m.sitOut = false;
+      m.sitOutReason = null;
+      m.missed = 0;
+      m.missedHand = 0;
+    }
+    this.system(party, 'The leader opened a rematch: ready up to play again');
+    this.changed(party);
   }
 
   private finish(party: PartyRec, reason: string): void {

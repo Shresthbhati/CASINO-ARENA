@@ -439,7 +439,7 @@ export const PartyScreen: React.FC = () => {
         <PartyTable view={view} online={online} send={send} leave={leave} history={fetchHistory} />
       ) : (
         <div className="flex flex-col gap-3">
-          <Standings view={view} />
+          <Standings view={view} send={send} />
           <button type="button" className={`${quiet} self-start`} onClick={() => void leave()}>
             Leave party
           </button>

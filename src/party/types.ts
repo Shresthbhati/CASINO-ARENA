@@ -111,6 +111,8 @@ export type Command =
   | { readonly type: 'pause'; readonly id: string; readonly paused: boolean }
   | { readonly type: 'nextHand'; readonly id: string }
   | { readonly type: 'end'; readonly id: string }
+  /** Leader only, once a session has ended: back to the lobby with the same group and settings. */
+  | { readonly type: 'rematch'; readonly id: string }
   | { readonly type: 'leave'; readonly id: string }
   | {
       readonly type: 'act';
