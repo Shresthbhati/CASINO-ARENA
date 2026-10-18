@@ -141,6 +141,7 @@ const ConfigForm: React.FC<{ view: PartyView; send: Send }> = ({ view, send }) =
     smallBlind: c.smallBlind,
     teams: c.teams,
     botSeats: c.botSeats,
+    blindEvery: c.blindEvery,
     turnSeconds: c.turnSeconds,
     rounds: c.rounds,
   });
@@ -163,7 +164,7 @@ const ConfigForm: React.FC<{ view: PartyView; send: Send }> = ({ view, send }) =
             startingChips: draft.startingChips,
             turnSeconds: draft.turnSeconds,
             // Blinds and bots belong to Hold'em, teams to Hold'em and blackjack; roulette sends none of them.
-            ...(holdem ? { smallBlind: draft.smallBlind, bigBlind: draft.smallBlind * 2, teams: draft.teams, botSeats: draft.botSeats } : {}),
+            ...(holdem ? { smallBlind: draft.smallBlind, bigBlind: draft.smallBlind * 2, teams: draft.teams, botSeats: draft.botSeats, blindEvery: draft.blindEvery } : {}),
             ...(blackjack ? { teams: draft.teams, rounds: draft.rounds } : {}),
           },
         });
@@ -211,6 +212,15 @@ const ConfigForm: React.FC<{ view: PartyView; send: Send }> = ({ view, send }) =
             Bot seats
             <input className={input} type="number" min={0} max={5} value={draft.botSeats} onChange={num('botSeats')} />
           </label>
+          <label className={row}>
+            Tournament: blinds rise every (hands)
+            <input className={input} type="number" min={0} max={50} value={draft.blindEvery} onChange={num('blindEvery')} aria-describedby="tournament-note" />
+          </label>
+          <p id="tournament-note" className="text-xs text-muted">
+            {draft.blindEvery > 0
+              ? `Sit-and-go: the blinds step up every ${draft.blindEvery} hands and the last player with chips wins. Busted players are ranked by when they went out.`
+              : '0 keeps the blinds fixed. Set 3 to 50 to play a sit-and-go tournament.'}
+          </p>
           <label className={row}>
             Teams
             <select className={input} value={draft.teams} onChange={(e) => setDraft({ ...draft, teams: e.target.value as 'off' | 'two' })}>
@@ -351,6 +361,12 @@ export const Lobby: React.FC<{ view: PartyView; send: Send; leave: () => Promise
                 <dd className="text-right font-mono text-cream">
                   {view.config.smallBlind}/{view.config.bigBlind}
                 </dd>
+                {view.config.blindEvery > 0 ? (
+                  <>
+                    <dt className="text-muted">Tournament</dt>
+                    <dd className="text-right text-cream">Blinds rise every {view.config.blindEvery} hands</dd>
+                  </>
+                ) : null}
                 <dt className="text-muted">Bot seats</dt>
                 <dd className="text-right font-mono text-cream">{view.config.botSeats}</dd>
               </>

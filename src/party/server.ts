@@ -34,6 +34,7 @@ import { BJ, BlackjackRoom, parseBjDurable } from './blackjack';
 import { KeyedRandom, TapeRandom, validTape, type TapeSource } from './tape';
 import { PERSONALITIES, type Archetype } from '@/arena/ai/personality';
 import { HoldemTable, type HoldemView } from '@/casino/games/holdem/engine';
+import { BLIND_EVERY_MAX, BLIND_EVERY_MIN } from '@/casino/games/holdem/blind-schedule';
 import { decideAdaptive } from '@/casino/games/holdem/ev-policy';
 import type { PokerActionKind, SeatConfig } from '@/casino/games/holdem/types';
 import {
@@ -790,6 +791,7 @@ export class PartyServer {
       {
         seats,
         blinds: { smallBlind: config.smallBlind, bigBlind: config.bigBlind },
+        blindEvery: config.blindEvery,
         humanSeatIndex: 0,
         // Every human is read separately from this table's public actions, in memory only.
         readHumansInSession: true,
@@ -816,7 +818,7 @@ export class PartyServer {
         return s.stack > 0 && !(id && party.members.find((m) => m.id === id)?.left);
       }).length;
       if (funded < 2) {
-        this.finish(party, 'Only one player has chips left');
+        this.finish(party, this.lastStandingReason(party));
         return;
       }
       // Chips remain on both sides of the table, but too few players are present to deal. Wait for
@@ -1036,7 +1038,7 @@ export class PartyServer {
     if (!table || party.handRecords.some((h) => h.hand === view.handsPlayed)) return;
     party.handRecords.push({
       hand: view.handsPlayed, status: 'in_progress', startedAt: this.now(), endedAt: null, button: view.buttonSeat,
-      smallBlindSeat: view.smallBlindSeat, bigBlindSeat: view.bigBlindSeat, blinds: { small: party.config.smallBlind, big: party.config.bigBlind },
+      smallBlindSeat: view.smallBlindSeat, bigBlindSeat: view.bigBlindSeat, blinds: { small: table.blinds().small, big: table.blinds().big },
       startStacks: view.seats.map((s) => s.stack + s.committed),
       holeCards: view.seats.map((_, i) => table.holeCardsFor(i).map((c) => ({ rank: c.rank, suit: c.suit }))),
       actions: [], board: [], showdown: [], payouts: [], uncalledReturn: null, endStacks: null, summary: '',
@@ -1125,7 +1127,7 @@ export class PartyServer {
       : null;
     const session: SessionMeta = {
       game: party.config.game, startedAt: party.startedAt, endedAt: party.endedAt,
-      config: { startingChips: party.config.startingChips, smallBlind: party.config.smallBlind, bigBlind: party.config.bigBlind, teams: party.config.teams, botSeats: party.config.botSeats, turnSeconds: party.config.turnSeconds, ...(party.config.game === 'blackjack' && party.config.teams === 'two' ? { rounds: party.config.rounds } : {}) },
+      config: { startingChips: party.config.startingChips, smallBlind: party.config.smallBlind, bigBlind: party.config.bigBlind, teams: party.config.teams, botSeats: party.config.botSeats, turnSeconds: party.config.turnSeconds, ...(party.config.game === 'texas-holdem' && party.config.blindEvery > 0 ? { blindEvery: party.config.blindEvery } : {}), ...(party.config.game === 'blackjack' && party.config.teams === 'two' ? { rounds: party.config.rounds } : {}) },
       players: party.sessionPlayers.map((p) => ({ ...p })),
     };
     return { ok: true, export: buildExport({ scope: req.scope, visibility, status: ended ? 'ended' : 'live', session, hands: exportHands, rounds, blackjackRounds: bjRounds, final }) };
@@ -1171,6 +1173,16 @@ export class PartyServer {
     }
     this.system(party, 'The leader opened a rematch: ready up to play again');
     this.changed(party);
+  }
+
+  /** Why a Hold'em session ended with at most one player holding chips; a tournament names its winner. */
+  private lastStandingReason(party: PartyRec): string {
+    const seats = party.table?.view().seats ?? [];
+    const alive = seats.filter((s, i) => {
+      const id = party.seatMembers[i];
+      return s.stack > 0 && !(id && party.members.find((m) => m.id === id)?.left);
+    });
+    return party.config.blindEvery > 0 && alive.length === 1 ? `${alive[0]?.name ?? 'Someone'} wins the tournament` : 'Only one player has chips left';
   }
 
   private finish(party: PartyRec, reason: string): void {
@@ -1352,7 +1364,7 @@ export class PartyServer {
         }
       }
       // The session is over when fewer than two seats still hold chips.
-      if (view.seats.filter((s) => s.stack > 0).length < 2) this.finish(party, 'Only one player has chips left');
+      if (view.seats.filter((s) => s.stack > 0).length < 2) this.finish(party, this.lastStandingReason(party));
     }
   }
 
@@ -1735,10 +1747,16 @@ export class PartyServer {
       };
     });
     return {
-      handNumber: v.handsPlayed, handLive: live, street: v.street,
+      handNumber: v.handsPlayed, handLive: live, street: v.street, blinds: this.blindsView(party),
       board: v.board.map((c) => ({ rank: c.rank, suit: c.suit })),
       pot: voided ? 0 : v.pot, currentBet: voided ? 0 : v.currentBet, turnSeat: live ? v.turnSeat : -1, buttonSeat: v.buttonSeat, waiting: party.waiting, seats,
     };
+  }
+
+  /** The blinds in force, for the public table. A cash table reports its fixed blinds with no schedule. */
+  private blindsView(party: PartyRec): PublicTable['blinds'] {
+    if (party.table) return party.table.blinds();
+    return { small: party.config.smallBlind, big: party.config.bigBlind, level: 0, handsLeft: null };
   }
 
   private scoreboard(party: PartyRec): TeamScore[] | null {
@@ -1777,13 +1795,22 @@ export class PartyServer {
     }
     if (!party.table) return null;
     const view = party.table.view();
+    // In a tournament everyone who is out holds zero chips, so the order they went out decides their place:
+    // the later the hand, the better; two players busting in the same hand rank by the stack they began it with.
+    const tournament = party.config.blindEvery > 0;
+    const out = (i: number): { hand: number; start: number } => {
+      for (const h of party.handRecords) if (h.endStacks && h.endStacks[i] === 0 && h.startStacks[i] !== 0) return { hand: h.hand, start: h.startStacks[i] ?? 0 };
+      return { hand: Number.POSITIVE_INFINITY, start: 0 };
+    };
     return view.seats
-      .map((s, i): Standing => {
+      .map((s, i) => {
         const id = party.seatMembers[i] ?? null;
         const m = id ? party.members.find((x) => x.id === id) : undefined;
-        return { name: s.name, memberId: id, team: m?.team ?? null, chips: s.stack + s.committed, net: s.stack + s.committed - party.config.startingChips };
+        const standing: Standing = { name: s.name, memberId: id, team: m?.team ?? null, chips: s.stack + s.committed, net: s.stack + s.committed - party.config.startingChips };
+        return { standing, out: tournament ? out(i) : { hand: 0, start: 0 } };
       })
-      .sort((a, b) => b.chips - a.chips);
+      .sort((a, b) => b.standing.chips - a.standing.chips || b.out.hand - a.out.hand || b.out.start - a.out.start)
+      .map((x) => x.standing);
   }
 
   // ── Persistence ───────────────────────────────────────────────────────────
@@ -2124,7 +2151,7 @@ function validateConfig(c: PartyConfig, currentMembers: number): Result<{ value:
     if (c.botSeats !== 0) return fail('INVALID', 'Roulette has no bot seats');
     return {
       ok: true,
-      value: { game: 'roulette', maxPlayers: c.maxPlayers, startingChips: c.startingChips, smallBlind: DEFAULT_CONFIG.smallBlind, bigBlind: DEFAULT_CONFIG.bigBlind, teams: 'off', botSeats: 0, turnSeconds: c.turnSeconds, rounds: DEFAULT_CONFIG.rounds },
+      value: { game: 'roulette', maxPlayers: c.maxPlayers, startingChips: c.startingChips, smallBlind: DEFAULT_CONFIG.smallBlind, bigBlind: DEFAULT_CONFIG.bigBlind, teams: 'off', botSeats: 0, turnSeconds: c.turnSeconds, rounds: DEFAULT_CONFIG.rounds, blindEvery: 0 },
     };
   }
   if (c.game === 'blackjack') {
@@ -2133,15 +2160,19 @@ function validateConfig(c: PartyConfig, currentMembers: number): Result<{ value:
     if (!int(rounds) || rounds < 3 || rounds > 100) return fail('INVALID', 'The round limit must be between 3 and 100');
     return {
       ok: true,
-      value: { game: 'blackjack', maxPlayers: c.maxPlayers, startingChips: c.startingChips, smallBlind: DEFAULT_CONFIG.smallBlind, bigBlind: DEFAULT_CONFIG.bigBlind, teams: c.teams, botSeats: 0, turnSeconds: c.turnSeconds, rounds },
+      value: { game: 'blackjack', maxPlayers: c.maxPlayers, startingChips: c.startingChips, smallBlind: DEFAULT_CONFIG.smallBlind, bigBlind: DEFAULT_CONFIG.bigBlind, teams: c.teams, botSeats: 0, turnSeconds: c.turnSeconds, rounds, blindEvery: 0 },
     };
   }
   if (!int(c.botSeats) || c.botSeats < 0 || c.botSeats > LIMITS.maxSeats - 1) return fail('INVALID', `Bots must be between 0 and ${LIMITS.maxSeats - 1}`);
   if (!int(c.smallBlind) || !int(c.bigBlind) || c.smallBlind < 1 || c.bigBlind !== c.smallBlind * 2) return fail('INVALID', 'The big blind must be twice the small blind');
   if (c.startingChips < c.bigBlind * 20) return fail('INVALID', 'Starting chips must be at least 20 big blinds');
   if (c.teams !== 'off' && c.teams !== 'two') return fail('INVALID', 'Teams must be off or two');
+  const blindEvery = c.blindEvery === undefined ? DEFAULT_CONFIG.blindEvery : c.blindEvery;
+  if (!int(blindEvery) || (blindEvery !== 0 && (blindEvery < BLIND_EVERY_MIN || blindEvery > BLIND_EVERY_MAX))) {
+    return fail('INVALID', `Blinds rise every ${BLIND_EVERY_MIN} to ${BLIND_EVERY_MAX} hands, or 0 to keep them fixed`);
+  }
   return {
     ok: true,
-    value: { game: c.game, maxPlayers: c.maxPlayers, startingChips: c.startingChips, smallBlind: c.smallBlind, bigBlind: c.bigBlind, teams: c.teams, botSeats: c.botSeats, turnSeconds: c.turnSeconds, rounds: DEFAULT_CONFIG.rounds },
+    value: { game: c.game, maxPlayers: c.maxPlayers, startingChips: c.startingChips, smallBlind: c.smallBlind, bigBlind: c.bigBlind, teams: c.teams, botSeats: c.botSeats, turnSeconds: c.turnSeconds, rounds: DEFAULT_CONFIG.rounds, blindEvery },
   };
 }

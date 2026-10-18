@@ -185,6 +185,15 @@ What was done and why:
   Hold'em about 1 MB per 1000 hands of history. Sessions of tens of thousands of hands would need an
   append-only log (see Known limitations).
 
+## Tournaments (Hold'em)
+
+`blindEvery` in the table settings is 0 (cash table, fixed blinds) or 3-50 (a sit-and-go). In a tournament the
+blinds are `base x BLIND_MULTIPLIERS[level]` with `level = floor((hand - 1) / blindEvery)`, capped at the last
+level (`src/casino/games/holdem/blind-schedule.ts`). Because the level is a pure function of the hand number,
+journal replay and checkpoint recovery reproduce the blinds with nothing extra recorded. The session ends when
+one player has chips. Final order is chips, then the hand in which a player went out (later is better), then
+the stack they began that hand with. The setting is ignored by roulette and blackjack.
+
 ## Seat lifecycle (disconnects, absences, departures)
 
 | State | How it arises | What it means |

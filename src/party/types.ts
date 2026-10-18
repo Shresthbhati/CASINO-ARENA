@@ -46,6 +46,11 @@ export interface PartyConfig {
   readonly turnSeconds: number;
   /** Team blackjack: the round limit. Ignored by every other game and mode. */
   readonly rounds: number;
+  /**
+   * Hold'em tournament: the blinds step up every this many hands and the last player with chips wins.
+   * 0 is a cash table with fixed blinds. Ignored by every other game.
+   */
+  readonly blindEvery: number;
 }
 
 export const DEFAULT_CONFIG: PartyConfig = {
@@ -58,6 +63,7 @@ export const DEFAULT_CONFIG: PartyConfig = {
   botSeats: 0,
   turnSeconds: 30,
   rounds: 20,
+  blindEvery: 0,
 };
 
 export const LIMITS = {
@@ -175,6 +181,8 @@ export interface PublicSeat {
 
 export interface PublicTable {
   readonly handNumber: number;
+  /** The blinds in force for this hand (or the next one, between hands), and where the schedule stands. */
+  readonly blinds: { readonly small: number; readonly big: number; readonly level: number; readonly handsLeft: number | null };
   readonly handLive: boolean;
   readonly street: PokerStreet;
   readonly board: readonly CardView[];
