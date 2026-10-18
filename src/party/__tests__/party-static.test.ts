@@ -138,7 +138,7 @@ describe('what must never be served', () => {
 
   it('no write methods against static paths', async () => {
     for (const method of ['POST', 'PUT', 'DELETE', 'PATCH']) {
-      const r = await fetch(base + '/index.html', { method, body: method === 'POST' || method === 'PUT' || method === 'PATCH' ? '{}' : undefined });
+      const r = await fetch(base + '/index.html', method === 'DELETE' ? { method } : { method, body: '{}' });
       expect(r.status, method).toBeGreaterThanOrEqual(400);
       expect(await r.text()).not.toContain('APP SHELL');
     }
