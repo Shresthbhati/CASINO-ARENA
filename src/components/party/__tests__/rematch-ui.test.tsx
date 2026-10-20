@@ -6,6 +6,7 @@ import type { PartyView } from '@/party/types';
 const view = (youId: string): PartyView =>
   ({
     leaderId: 'lead',
+    config: { blindEvery: 0 },
     standings: [
       { name: 'Ann', memberId: 'lead', team: null, chips: 1200, net: 200 },
       { name: 'Bo', memberId: 'bo', team: null, chips: 800, net: -200 },

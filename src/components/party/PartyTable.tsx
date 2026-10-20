@@ -430,14 +430,20 @@ export const Scoreboard: React.FC<{ view: PartyView }> = ({ view }) =>
     </section>
   ) : null;
 
+const place = (n: number): string => {
+  const teen = n % 100 >= 11 && n % 100 <= 13;
+  const suffix = teen ? 'th' : n % 10 === 1 ? 'st' : n % 10 === 2 ? 'nd' : n % 10 === 3 ? 'rd' : 'th';
+  return `${n}${suffix}`;
+};
+
 export const Standings: React.FC<{ view: PartyView; send?: Send }> = ({ view, send }) =>
   view.standings ? (
     <section aria-label="Final standings" className="border border-gold/40 bg-panel-deep p-4">
-      <h3 className="font-display text-xl text-cream">Final standings</h3>
+      <h3 className="font-display text-xl text-cream">{view.config.blindEvery > 0 ? 'Tournament result' : 'Final standings'}</h3>
       <ol className="mt-2 space-y-1">
         {view.standings.map((s, i) => (
           <li key={`${s.name}${i}`} className="flex items-center gap-2">
-            <span className="w-5 font-mono text-muted">{i + 1}</span>
+            <span className={`font-mono ${view.config.blindEvery > 0 ? 'w-9' : 'w-5'} ${view.config.blindEvery > 0 && i === 0 ? 'text-gold-bright' : 'text-muted'}`}>{view.config.blindEvery > 0 ? place(i + 1) : i + 1}</span>
             <span className="flex-1 text-cream">{s.name}</span>
             <TeamBadge team={s.team} />
             <span className="font-mono text-gold-bright">{chips(s.chips)}</span>
@@ -504,6 +510,15 @@ export const PartyTable: React.FC<{ view: PartyView; online: boolean; send: Send
           </span>
           <span className="text-muted">
             Hand {table.handNumber} · {table.street.replace('_', ' ').toLowerCase()}
+          </span>
+          <span className="text-muted" data-testid="blinds-line">
+            Blinds <span className="font-mono text-cream">{table.blinds.small}/{table.blinds.big}</span>
+            {view.config.blindEvery > 0 && view.phase !== 'ENDED' ? (
+              <>
+                {' '}· level {table.blinds.level + 1}
+                {table.blinds.handsLeft !== null ? ` · rise in ${table.blinds.handsLeft} ${table.blinds.handsLeft === 1 ? 'hand' : 'hands'}` : ' · final level'}
+              </>
+            ) : null}
           </span>
           {view.paused ? <span className="font-medium text-warn">Paused by leader</span> : null}
           <span className={online ? 'text-win' : 'text-loss'} role="status">

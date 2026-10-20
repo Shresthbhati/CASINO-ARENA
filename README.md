@@ -199,6 +199,12 @@ npm run dev            # the web app on :5173, proxied to the server
 4. Everyone except the leader taps **Ready**; the leader taps **Start game**. Add bot seats in the
    table settings if you want more opponents than humans.
 
+**Sit-and-go tournament (Hold'em).** In the table settings, set *Tournament: blinds rise every (hands)* to a
+number from 3 to 50. The blinds then step up on a fixed schedule (1×, 2×, 3×, 4×, 6×, 8×, 12×, 16×, 24×, 32×,
+48×, 64× the starting blinds), the table shows the current level and how many hands are left at it, and the
+session ends when one player has chips. Players are ranked by when they went out. Leave it at 0 for a cash table
+with fixed blinds. The schedule depends only on the hand number, so a server restart resumes on the same blinds.
+
 Party chips are separate virtual stacks and never touch your casino wallet.
 
 ## AI difficulty

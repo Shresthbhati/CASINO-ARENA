@@ -52,6 +52,7 @@ import { decide, explain, type PolicyContext, type PokerDecision } from './polic
 import type { DecisionAnalysis } from './ev-policy';
 import { recordResult, type StrategicState } from './strategic-state';
 import { tuningFor } from '@/arena/ai/difficulty';
+import { blindsAt, type BlindLevel } from './blind-schedule';
 import { getPersonality, type Archetype } from '@/arena/ai/personality';
 import {
   LIVE_PHASES,
@@ -93,6 +94,8 @@ export type BettingLimit = 'NO_LIMIT' | 'POT_LIMIT';
 export interface HoldemConfig {
   readonly seats: readonly SeatConfig[];
   readonly blinds: BlindConfig;
+  /** Tournament table: the blinds step up every this many hands (see `blind-schedule.ts`). 0 or absent: fixed blinds. */
+  readonly blindEvery?: number;
   /** Seat index of the local player. Exactly one per table. */
   readonly humanSeatIndex: number;
   /**
@@ -534,6 +537,15 @@ export class HoldemTable {
 
 // ── Hand lifecycle ───────────────────────────────────────────────────────
 
+  /** The blinds for the hand in progress (or the one about to be dealt, between hands). */
+  blinds(): BlindLevel {
+    return this.blindsFor(this.phase === 'IDLE' || this.phase === 'HAND_COMPLETE' ? this.handNumber + 1 : this.handNumber);
+  }
+
+  private blindsFor(handNumber: number): BlindLevel {
+    return blindsAt(this.config.blinds, this.config.blindEvery ?? 0, handNumber);
+  }
+
   /**
    * Begin the next hand: rotate the button and blinds, deal, post blinds.
    *
@@ -576,7 +588,7 @@ export class HoldemTable {
     this.potResult = null;
     this.lastResult = null;
     this.currentBet = 0;
-    this.lastRaiseSize = this.config.blinds.bigBlind;
+    this.lastRaiseSize = this.blinds().big;
     this.turn = -1;
     this.analyses.clear();
     this.humanLog = [];
@@ -702,12 +714,12 @@ export class HoldemTable {
     if (sb === bb) return -1;
 
     sb.isSmallBlind = true;
-    if (!this.commit(sb, this.config.blinds.smallBlind)) return -1;
+    if (!this.commit(sb, this.blinds().small)) return -1;
     bb.isBigBlind = true;
-    if (!this.commit(bb, this.config.blinds.bigBlind)) return -1;
+    if (!this.commit(bb, this.blinds().big)) return -1;
 
     this.currentBet = Math.max(sb.committedThisStreet, bb.committedThisStreet);
-    this.lastRaiseSize = this.config.blinds.bigBlind;
+    this.lastRaiseSize = this.blinds().big;
     return bbIndex;
   }
 
@@ -837,7 +849,7 @@ export class HoldemTable {
    * rather than on the increment.
    */
   minRaiseTo(): number {
-    const base = this.currentBet > 0 ? this.currentBet : this.config.blinds.bigBlind;
+    const base = this.currentBet > 0 ? this.currentBet : this.blinds().big;
     return base + this.lastRaiseSize;
   }
 
@@ -1121,7 +1133,7 @@ export class HoldemTable {
       s.betSeen = 0;
     }
     this.currentBet = 0;
-    this.lastRaiseSize = this.config.blinds.bigBlind;
+    this.lastRaiseSize = this.blinds().big;
 
     switch (this.street) {
       case 'PRE_FLOP':
@@ -1461,7 +1473,7 @@ export class HoldemTable {
       });
       // Results move only the bot's variance tracker, never its strategy (see strategic-state.ts).
       const state = this.strategic.get(index);
-      if (state) this.strategic.set(index, recordResult(state, (amount - seat.committed) / this.config.blinds.bigBlind));
+      if (state) this.strategic.set(index, recordResult(state, (amount - seat.committed) / this.blinds().big));
     });
     const humanNet = humanAwarded - humanSeat.committed;
 
